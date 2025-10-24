@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kmodule xmlns="http://www.drools.org/xsd/kmodule"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+    <kbase name="cds-rules-kbase" packages="com.rwanda.health.cds.rules">
+        <ksession name="cds-rules-session" type="stateful"/>
+    </kbase>
+
+</kmodule>
