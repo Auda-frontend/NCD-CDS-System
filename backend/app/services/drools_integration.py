@@ -27,7 +27,7 @@ class DroolsIntegrationService:
     
     def _convert_to_java_input(self, patient_data: PatientData) -> Dict[str, Any]:
         """Convert Python Pydantic model to Java-compatible JSON"""
-        return {
+        java_input = {
             "demographics": {
                 "patientId": patient_data.demographics.patient_id,
                 "upid": patient_data.demographics.upid,
@@ -43,7 +43,8 @@ class DroolsIntegrationService:
             "consultation": {
                 "practitionerName": patient_data.consultation.practitioner_name,
                 "consultationType": patient_data.consultation.consultation_type.value if patient_data.consultation.consultation_type else None,
-                "chiefComplaint": patient_data.consultation.chief_complaint
+                "chiefComplaint": patient_data.consultation.chief_complaint,
+                "patientReferredFrom": patient_data.consultation.patient_referred_from
             },
             "medicalHistory": {
                 "hypertension": patient_data.medical_history.hypertension,
@@ -64,7 +65,29 @@ class DroolsIntegrationService:
                 "formerSmoker": patient_data.medical_history.former_smoker,
                 "currentSmoker": patient_data.medical_history.current_smoker,
                 "formerAlcohol": patient_data.medical_history.former_alcohol,
-                "currentAlcohol": patient_data.medical_history.current_alcohol
+                "currentAlcohol": patient_data.medical_history.current_alcohol,
+                
+                # Diabetes-specific fields
+                "diabetesSymptoms": patient_data.medical_history.diabetes_symptoms,
+                "diabetesOnset": patient_data.medical_history.diabetes_onset.value if patient_data.medical_history.diabetes_onset else None,
+                "ketoacidosisHistory": patient_data.medical_history.ketoacidosis_history,
+                "autoimmuneDisease": patient_data.medical_history.autoimmune_disease,
+                "obesity": patient_data.medical_history.obesity,
+                "familyHistoryDiabetes": patient_data.medical_history.family_history_diabetes,
+                "historyGDM": patient_data.medical_history.history_gdm,
+                "renalImpairment": patient_data.medical_history.renal_impairment,
+                "liverDisease": patient_data.medical_history.liver_disease,
+                "cardiovascularDisease": patient_data.medical_history.cardiovascular_disease,
+                "neuropathySymptoms": patient_data.medical_history.neuropathy_symptoms,
+                "persistentProteinuria": patient_data.medical_history.persistent_proteinuria,
+                "cardiovascularRiskFactors": patient_data.medical_history.cardiovascular_risk_factors,
+                "abdominalPain": patient_data.medical_history.abdominal_pain,
+                "nauseaVomiting": patient_data.medical_history.nausea_vomiting,
+                "dehydration": patient_data.medical_history.dehydration,
+                "rapidBreathing": patient_data.medical_history.rapid_breathing,
+                "dangerSigns": patient_data.medical_history.danger_signs,
+                "treatmentDuration": patient_data.medical_history.treatment_duration,
+                "hivPositive": patient_data.medical_history.hiv_positive
             },
             "socialHistory": {
                 "tobaccoUse": patient_data.social_history.tobacco_use,
@@ -84,6 +107,23 @@ class DroolsIntegrationService:
                 "painScore": patient_data.physical_examination.pain_score
             }
         }
+        
+        # Add investigations if available
+        if patient_data.investigations:
+            java_input["investigations"] = {
+                "hba1c": patient_data.investigations.hba1c,
+                "fastingGlucose": patient_data.investigations.fasting_glucose,
+                "randomGlucose": patient_data.investigations.random_glucose,
+                "bloodGlucose": patient_data.investigations.blood_glucose,
+                "egfr": patient_data.investigations.egfr,
+                "ketonuria": patient_data.investigations.ketonuria,
+                "urineProtein": patient_data.investigations.urine_protein,
+                "serumCreatinine": patient_data.investigations.serum_creatinine,
+                "ldlCholesterol": patient_data.investigations.ldl_cholesterol,
+                "additionalTests": patient_data.investigations.additional_tests
+            }
+        
+        return java_input
     
     def _convert_from_java_output(self, java_output: Dict[str, Any]) -> List[ClinicalDecision]:
         """Convert Java JSON output back to Python ClinicalDecision objects"""
@@ -94,8 +134,9 @@ class DroolsIntegrationService:
                 decision = ClinicalDecision(
                     diagnosis=decision_data.get("diagnosis"),
                     stage=decision_data.get("stage"),
-                    recommended_medications=decision_data.get("recommendedMedications", []),
-                    recommended_tests=decision_data.get("recommendedTests", []),
+                    sub_classification=decision_data.get("subClassification"),  # Added for diabetes type
+                    medications=decision_data.get("medications", []),  # Updated field name
+                    tests=decision_data.get("tests", []),  # Updated field name
                     patient_advice=decision_data.get("patientAdvice"),
                     needs_referral=decision_data.get("needsReferral", False),
                     referral_reason=decision_data.get("referralReason"),
@@ -178,3 +219,26 @@ class DroolsIntegrationService:
                     os.unlink(output_file_path)
             except:
                 pass  # Ignore cleanup errors
+
+    def test_connection(self) -> bool:
+        """Test if the Drools integration is working"""
+        try:
+            # Create a simple test patient
+            from ..models.patient_models import create_sample_hypertension_patient
+            test_patient = create_sample_hypertension_patient()
+            
+            # Try to evaluate
+            response = self.evaluate_patient(test_patient)
+            return response.success
+            
+        except Exception as e:
+            print(f"Connection test failed: {e}")
+            return False
+
+    def batch_evaluate_patients(self, patient_list: List[PatientData]) -> List[CDSResponse]:
+        """Evaluate multiple patients in batch"""
+        responses = []
+        for patient in patient_list:
+            response = self.evaluate_patient(patient)
+            responses.append(response)
+        return responses
