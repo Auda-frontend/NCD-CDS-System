@@ -16,7 +16,7 @@ public class DroolsRuleService {
     private KieContainer kieContainer;
 
     public DroolsRuleService() {
-        System.out.println("🔄 Initializing DroolsRuleService (Guaranteed Approach)...");
+        System.out.println("Initializing DroolsRuleService...");
 
         try {
             KieServices kieServices = KieServices.Factory.get();
@@ -28,7 +28,7 @@ public class DroolsRuleService {
                 throw new IllegalStateException("Failed to load DRL rules from classpath");
             }
 
-            System.out.println("✅ Loaded DRL rules (" + drlContent.length() + " characters)");
+            System.out.println("Loaded DRL rules (" + drlContent.length() + " characters)");
 
             // Write DRL to KieFileSystem
             kfs.write("src/main/resources/rules.drl", drlContent);
@@ -39,7 +39,7 @@ public class DroolsRuleService {
 
             // Check for compilation errors
             if (kieBuilder.getResults().hasMessages(Message.Level.ERROR)) {
-                System.err.println("❌ DRL Compilation Errors:");
+                System.err.println("DRL Compilation Errors:");
                 for (Message message : kieBuilder.getResults().getMessages()) {
                     System.err.println("  - " + message.getText());
                 }
@@ -47,10 +47,10 @@ public class DroolsRuleService {
             }
 
             this.kieContainer = kieServices.newKieContainer(kieServices.getRepository().getDefaultReleaseId());
-            System.out.println("✅ KieContainer created successfully");
+            System.out.println("KieContainer created successfully");
 
         } catch (Exception e) {
-            System.err.println("❌ Drools initialization failed: " + e.getMessage());
+            System.err.println("Drools initialization failed: " + e.getMessage());
             e.printStackTrace();
             throw new IllegalStateException("Failed to initialize Drools engine", e);
         }
@@ -68,63 +68,63 @@ public class DroolsRuleService {
             for (String path : possiblePaths) {
                 try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
                     if (is != null) {
-                        System.out.println("✅ Found DRL at: " + path);
+                        System.out.println("Found DRL at: " + path);
                         return new String(is.readAllBytes(), StandardCharsets.UTF_8);
                     }
                 }
             }
 
             // Last resort: try file system
-            System.out.println("🔄 Trying file system...");
+            System.out.println("Trying file system...");
             try {
                 java.nio.file.Path fsPath = java.nio.file.Paths.get("src/main/resources/com/rwanda/health/cds/rules/HypertensionRules.drl");
                 if (java.nio.file.Files.exists(fsPath)) {
-                    System.out.println("✅ Found DRL on file system");
+                    System.out.println("Found DRL on file system");
                     return java.nio.file.Files.readString(fsPath);
                 }
             } catch (Exception e) {
                 System.err.println("File system check failed: " + e.getMessage());
             }
 
-            System.err.println("❌ Could not find DRL file in any location");
+            System.err.println("Could not find DRL file in any location");
             return null;
 
         } catch (Exception e) {
-            System.err.println("❌ Error loading DRL: " + e.getMessage());
+            System.err.println("Error loading DRL: " + e.getMessage());
             return null;
         }
     }
 
     public PatientData evaluatePatient(PatientData patientData) {
-        System.out.println("🔄 Evaluating patient with BP: " +
+        System.out.println("Evaluating patient with BP: " +
                 patientData.getPhysicalExamination().getSystole() + "/" +
                 patientData.getPhysicalExamination().getDiastole());
 
         KieSession kieSession = null;
         try {
             kieSession = kieContainer.newKieSession();
-            System.out.println("✅ KieSession created");
+            System.out.println("KieSession created");
 
             kieSession.insert(patientData);
-            System.out.println("✅ PatientData inserted");
+            System.out.println("PatientData inserted");
 
             int rulesFired = kieSession.fireAllRules();
-            System.out.println("✅ Rules fired: " + rulesFired);
+            System.out.println("Rules fired: " + rulesFired);
 
             if (rulesFired == 0) {
-                System.err.println("⚠️ No rules fired! Check rule conditions");
+                System.err.println("No rules fired! Check rule conditions");
             }
 
             return patientData;
 
         } catch (Exception e) {
-            System.err.println("❌ Error in evaluatePatient: " + e.getMessage());
+            System.err.println("Error in evaluatePatient: " + e.getMessage());
             e.printStackTrace();
             throw new IllegalStateException("Failed to evaluate patient: " + e.getMessage(), e);
         } finally {
             if (kieSession != null) {
                 kieSession.dispose();
-                System.out.println("✅ KieSession disposed");
+                System.out.println("KieSession disposed");
             }
         }
     }

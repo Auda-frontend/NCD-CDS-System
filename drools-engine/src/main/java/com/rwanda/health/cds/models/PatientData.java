@@ -9,6 +9,7 @@ public class PatientData {
     private MedicalHistory medicalHistory;
     private SocialHistory socialHistory;
     private PhysicalExamination physicalExamination;
+    private Investigations investigations;
     private List<ClinicalDecision> decisions;
     
     // Constructors
@@ -18,13 +19,14 @@ public class PatientData {
     
     public PatientData(PatientDemographics demographics, Consultation consultation, 
                       MedicalHistory medicalHistory, SocialHistory socialHistory, 
-                      PhysicalExamination physicalExamination) {
+                      PhysicalExamination physicalExamination, Investigations investigations) {
         this();
         this.demographics = demographics;
         this.consultation = consultation;
         this.medicalHistory = medicalHistory;
         this.socialHistory = socialHistory;
         this.physicalExamination = physicalExamination;
+        this.investigations = investigations;
     }
     
     // Getters and Setters
@@ -42,7 +44,15 @@ public class PatientData {
     
     public PhysicalExamination getPhysicalExamination() { return physicalExamination; }
     public void setPhysicalExamination(PhysicalExamination physicalExamination) { this.physicalExamination = physicalExamination; }
-    
+
+    public Investigations getInvestigations() {
+        return investigations;
+    }
+
+    public void setInvestigations(Investigations investigations) {
+        this.investigations = investigations;
+    }
+
     public List<ClinicalDecision> getDecisions() { return decisions; }
     public void setDecisions(List<ClinicalDecision> decisions) { this.decisions = decisions; }
     

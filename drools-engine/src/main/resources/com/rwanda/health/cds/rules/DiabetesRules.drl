@@ -1,0 +1,572 @@
+// Created by: Clinical CDS System
+// Purpose: Diabetes diagnosis and management rules based on Rwanda National Guidelines 2022
+// Source: Rwanda Standard Treatment Guidelines, Section III: Diabetes Mellitus
+
+package com.rwanda.health.cds.rules
+
+import com.rwanda.health.cds.models.PatientData
+import com.rwanda.health.cds.models.ClinicalDecision
+import com.rwanda.health.cds.models.Investigations
+import com.rwanda.health.cds.models.MedicalHistory
+import com.rwanda.health.cds.models.PhysicalExamination
+import com.rwanda.health.cds.models.PatientDemographics
+
+// =============================================
+// DIABETES DIAGNOSIS AND CLASSIFICATION RULES
+// =============================================
+
+// Rule 1: Diabetes Diagnosis by HbA1c (Highest Priority)
+rule "Diabetes Diagnosis by HbA1c"
+    salience 100
+    when
+        $patient: PatientData(
+            investigations.hba1c >= 6.5
+        )
+    then
+        ClinicalDecision decision = new ClinicalDecision();
+        decision.setDiagnosis("Diabetes Mellitus");
+        decision.setStage("Confirmed by HbA1c");
+        decision.setPatientAdvice("Diabetes confirmed. Requires comprehensive management including lifestyle modifications and pharmacological treatment.");
+        decision.setConfidenceLevel("HIGH");
+        $patient.addDecision(decision);
+        System.out.println("Applied rule: Diabetes Diagnosis by HbA1c");
+end
+
+// Rule 2: Diabetes Diagnosis by Fasting Glucose
+rule "Diabetes Diagnosis by Fasting Glucose"
+    salience 95
+    when
+        $patient: PatientData(
+            investigations.fastingGlucose >= 7.0
+        )
+        not ClinicalDecision(diagnosis == "Diabetes Mellitus")
+    then
+        ClinicalDecision decision = new ClinicalDecision();
+        decision.setDiagnosis("Diabetes Mellitus");
+        decision.setStage("Confirmed by Fasting Glucose");
+        decision.setPatientAdvice("Diabetes confirmed by fasting glucose. Requires immediate lifestyle intervention and medication.");
+        decision.setConfidenceLevel("HIGH");
+        $patient.addDecision(decision);
+        System.out.println("Applied rule: Diabetes Diagnosis by Fasting Glucose");
+end
+
+// Rule 3: Diabetes Diagnosis by Random Glucose with Symptoms
+rule "Diabetes Diagnosis by Random Glucose with Symptoms"
+    salience 90
+    when
+        $patient: PatientData(
+            investigations.randomGlucose >= 11.1,
+            medicalHistory.diabetesSymptoms == true
+        )
+        not ClinicalDecision(diagnosis == "Diabetes Mellitus")
+    then
+        ClinicalDecision decision = new ClinicalDecision();
+        decision.setDiagnosis("Diabetes Mellitus");
+        decision.setStage("Confirmed by Random Glucose with Symptoms");
+        decision.setPatientAdvice("Diabetes confirmed. Symptoms include polyuria, polydipsia, weight loss, blurred vision.");
+        decision.setConfidenceLevel("HIGH");
+        $patient.addDecision(decision);
+        System.out.println("Applied rule: Diabetes Diagnosis by Random Glucose with Symptoms");
+end
+
+// Rule 4: Prediabetes Identification
+rule "Prediabetes Identification"
+    salience 85
+    when
+        $patient: PatientData(
+            (investigations.hba1c >= 5.7 && investigations.hba1c < 6.5) ||
+            (investigations.fastingGlucose >= 5.6 && investigations.fastingGlucose < 7.0)
+        )
+        not ClinicalDecision(diagnosis == "Diabetes Mellitus")
+    then
+        ClinicalDecision decision = new ClinicalDecision();
+        decision.setDiagnosis("Prediabetes");
+        decision.setStage("High Risk");
+        decision.setPatientAdvice("High risk for diabetes. Intensive lifestyle modifications recommended to prevent progression to diabetes.");
+        decision.setConfidenceLevel("HIGH");
+        $patient.addDecision(decision);
+        System.out.println("Applied rule: Prediabetes Identification");
+end
+
+// Rule 5: Type 1 Diabetes Classification
+rule "Type 1 Diabetes Classification"
+    salience 80
+    when
+        $patient: PatientData(
+            demographics.age < 30,
+            medicalHistory.diabetesOnset == "acute",
+            (medicalHistory.ketoacidosisHistory == true || medicalHistory.autoimmuneDisease == true)
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.setSubClassification("Type 1 Diabetes");
+        $decision.setPatientAdvice($decision.getPatientAdvice() + " Type 1 diabetes suspected - requires insulin therapy. Refer to endocrinology.");
+        $decision.setNeedsReferral(true);
+        $decision.setReferralReason("Suspected Type 1 Diabetes - requires insulin initiation");
+        System.out.println("Applied rule: Type 1 Diabetes Classification");
+end
+
+// Rule 6: Type 2 Diabetes Classification
+rule "Type 2 Diabetes Classification"
+    salience 75
+    when
+        $patient: PatientData(
+            demographics.age >= 30,
+            medicalHistory.obesity == true || medicalHistory.familyHistoryDiabetes == true
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+        not ClinicalDecision(subClassification == "Type 1 Diabetes")
+    then
+        $decision.setSubClassification("Type 2 Diabetes");
+        System.out.println("Applied rule: Type 2 Diabetes Classification");
+end
+
+// =============================================
+// GLYCEMIC CONTROL ASSESSMENT AND TREATMENT
+// =============================================
+
+// Rule 7: Poor Glycemic Control - Needs Dual Therapy
+rule "Poor Glycemic Control HbA1c >=9%"
+    salience 70
+    when
+        $patient: PatientData(
+            investigations.hba1c >= 9.0
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
+    then
+        $decision.setStage("Poor Control - Needs Dual Therapy");
+        $decision.addMedication("Initiate Metformin 500mg daily for 5 days then twice daily");
+        $decision.addMedication("ADD Sulfonylurea: Gliclazide 30-120mg OD/BD (first choice)");
+        $decision.addMedication("OR Glimepiride 1-8mg OD (second choice)");
+        $decision.addMedication("OR Glibenclamide 5-10mg OD/BD (third choice)");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " POOR GLYCEMIC CONTROL: HbA1c ≥9%. Requires dual therapy initiation.");
+
+        System.out.println("Applied rule: Poor Glycemic Control HbA1c >=9%");
+end
+
+// Rule 8: Very Poor Control - Consider Insulin
+rule "Very Poor Glycemic Control HbA1c >=10%"
+    salience 65
+    when
+        $patient: PatientData(
+            investigations.hba1c >= 10.0 || investigations.randomGlucose >= 16.7
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
+    then
+        $decision.setStage("Very Poor Control - Consider Insulin");
+        $decision.addMedication("Consider adding insulin therapy");
+        $decision.addMedication("Metformin + Sulfonylurea + Consider insulin");
+        $decision.addMedication("Total daily insulin dose: 0.5U/kg");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " VERY POOR CONTROL: HbA1c ≥10% or markedly symptomatic. Consider insulin therapy.");
+
+        $decision.setNeedsReferral(true);
+        $decision.setReferralReason("Very poor glycemic control - may require insulin therapy");
+
+        System.out.println("Applied rule: Very Poor Glycemic Control HbA1c >=10%");
+end
+
+// Rule 9: Moderate Control - Monotherapy
+rule "Moderate Glycemic Control HbA1c <9%"
+    salience 60
+    when
+        $patient: PatientData(
+            investigations.hba1c < 9.0 && investigations.hba1c >= 6.5
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
+    then
+        $decision.setStage("New Diagnosis - Start Monotherapy");
+        $decision.addMedication("Initiate Metformin 500mg daily for 5 days");
+        $decision.addMedication("Titrate to 500mg twice daily if good tolerability");
+        $decision.addMedication("Maximum dose: 1g twice daily");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " New diagnosis with HbA1c <9%. Start metformin monotherapy.");
+
+        System.out.println("Applied rule: Moderate Glycemic Control HbA1c <9%");
+end
+
+// Rule 10: Treatment Failure - Triple Therapy
+rule "Treatment Failure After 3 Months"
+    salience 55
+    when
+        $patient: PatientData(
+            medicalHistory.currentMedications contains "Metformin",
+            investigations.hba1c >= 7.0,
+            medicalHistory.treatmentDuration >= 3
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
+    then
+        $decision.setStage("Treatment Failure - Needs Intensification");
+        $decision.addMedication("ADD second drug: Sulfonylurea (Gliclazide/Glimepiride)");
+        $decision.addMedication("OR DPP4 inhibitor (Vildagliptin 50mg BID, Sitagliptin 50-100mg OD)");
+        $decision.addMedication("OR SGLT2 inhibitor (Dapagliflozin 5-10mg OD)");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " Treatment failure after 3 months. Add second oral agent.");
+
+        System.out.println("Applied rule: Treatment Failure After 3 Months");
+end
+
+// =============================================
+// FIRST-LINE TREATMENT AND CONTRAINDICATIONS
+// =============================================
+
+// Rule 11: Metformin First Line Therapy
+rule "First Line Therapy - Metformin"
+    when
+        $patient: PatientData(
+            medicalHistory.renalImpairment == false,
+            investigations.egfr >= 45,
+            medicalHistory.liverDisease == false
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
+    then
+        $decision.addMedication("Metformin 500mg once daily with meals");
+        $decision.addMedication("Titrate to 500mg twice daily after 1-2 weeks");
+        $decision.addMedication("Maximum dose 1000mg twice daily if tolerated");
+
+        $decision.addTest("Renal function tests baseline");
+        $decision.addTest("Liver function tests");
+        $decision.addTest("Fasting lipid profile");
+
+        System.out.println("Applied rule: First Line Therapy - Metformin");
+end
+
+// Rule 12: Metformin Contraindications - Renal Impairment
+rule "Metformin Contraindication Renal"
+    when
+        $patient: PatientData(
+            medicalHistory.renalImpairment == true ||
+            investigations.egfr < 45
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addMedication("METFORMIN CONTRAINDICATED due to renal impairment");
+        $decision.addMedication("Start Sulfonylurea as first line (Gliclazide 30mg OD)");
+        $decision.addMedication("OR Consider Insulin therapy if hyperglycemia severe");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " Metformin contraindicated due to renal impairment (eGFR <45). Alternative agents required.");
+
+        System.out.println("Applied rule: Metformin Contraindication Renal");
+end
+
+// Rule 13: Type 1 Diabetes Insulin Requirement
+rule "Type 1 Diabetes Insulin Therapy"
+    when
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 1 Diabetes") from $patient.getDecisions()
+    then
+        $decision.addMedication("INSULIN THERAPY REQUIRED for Type 1 Diabetes");
+        $decision.addMedication("Total daily dose: 0.5-1.0 IU/kg/day");
+        $decision.addMedication("Regimen: Basal-bolus preferred OR Twice-daily mixed insulin");
+        $decision.addMedication("Prepubertal: 0.7-1.0 IU/kg/day, Puberty: 1.0-2.0 IU/kg/day");
+
+        $decision.setNeedsReferral(true);
+        $decision.setReferralReason("Type 1 Diabetes - requires insulin initiation and education");
+
+        System.out.println("Applied rule: Type 1 Diabetes Insulin Therapy");
+end
+
+// =============================================
+// COMORBIDITY-BASED TREATMENT RECOMMENDATIONS
+// =============================================
+
+// Rule 14: Diabetes with Hypertension
+rule "Diabetes with Hypertension Comorbidity"
+    when
+        $patient: PatientData(
+            physicalExamination.systole >= 130 ||
+            physicalExamination.diastole >= 80
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addMedication("ACEI (Captopril) or ARB (Losartan) preferred for hypertension in diabetes");
+        $decision.addMedication("Target BP: <130/80 mmHg");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " Hypertension present. Tight blood pressure control needed (target <130/80 mmHg). ACEI/ARB preferred.");
+
+        System.out.println("Applied rule: Diabetes with Hypertension Comorbidity");
+end
+
+// Rule 15: Diabetes with Cardiovascular Disease
+rule "Diabetes with CVD Comorbidity"
+    when
+        $patient: PatientData(
+            medicalHistory.cardiovascularDisease == true ||
+            medicalHistory.cad == true
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addMedication("Consider SGLT2 inhibitors if available (cardioprotective)");
+        $decision.addMedication("Statin therapy for all patients with diabetes and CVD");
+        $decision.addMedication("Aspirin 75-100mg daily if not contraindicated");
+
+        $decision.addTest("ECG - baseline");
+        $decision.addTest("Cardiac risk assessment annually");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " Cardiovascular disease present. Requires aggressive risk factor management and cardioprotective medications.");
+
+        System.out.println("Applied rule: Diabetes with CVD Comorbidity");
+end
+
+// Rule 16: Diabetes with Chronic Kidney Disease
+rule "Diabetes with CKD Comorbidity"
+    when
+        $patient: PatientData(
+            medicalHistory.chronicKidneyDisease == true ||
+            investigations.egfr < 60
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addMedication("SGLT2 inhibitors preferred if eGFR ≥30");
+        $decision.addMedication("ACEI/ARB for renal protection");
+        $decision.addMedication("Avoid metformin if eGFR <45");
+
+        $decision.addTest("Urine Albumin-Creatinine Ratio quarterly");
+        $decision.addTest("Serum potassium monitoring");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " Chronic kidney disease present. Renal-protective strategies and medication dose adjustments needed.");
+
+        System.out.println("Applied rule: Diabetes with CKD Comorbidity");
+end
+
+// =============================================
+// COMPLICATION SCREENING AND MANAGEMENT
+// =============================================
+
+// Rule 17: Retinopathy Screening
+rule "Retinopathy Screening"
+    when
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addTest("Annual dilated eye examination for retinopathy");
+        $decision.addTest("Retinal photography if available");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " Annual eye examinations crucial to detect diabetic retinopathy early.");
+
+        System.out.println("Applied rule: Retinopathy Screening");
+end
+
+// Rule 18: Neuropathy Screening
+rule "Neuropathy Screening"
+    when
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addTest("Annual foot examination for sensation");
+        $decision.addTest("Monofilament testing");
+        $decision.addTest("Ask about numbness, tingling, burning pain in feet");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " Regular foot examinations essential. Report any foot problems immediately.");
+
+        System.out.println("Applied rule: Neuropathy Screening");
+end
+
+// Rule 19: Neuropathy Symptoms Management
+rule "Neuropathy Symptoms Management"
+    when
+        $patient: PatientData(
+            medicalHistory.neuropathySymptoms == true
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addMedication("Amitriptyline 25mg at night for neuropathic pain");
+        $decision.addMedication("OR Gabapentin if available and amitriptyline not effective");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " Neuropathy symptoms present. Requires symptomatic treatment and regular foot care.");
+
+        System.out.println("Applied rule: Neuropathy Symptoms Management");
+end
+
+// Rule 20: Nephropathy Management
+rule "Nephropathy Management"
+    when
+        $patient: PatientData(
+            medicalHistory.persistentProteinuria == true
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addMedication("Start ACEI and refer to Internist/Nephrologist");
+        $decision.setNeedsReferral(true);
+        $decision.setReferralReason("Persistent proteinuria - requires nephrology evaluation");
+
+        System.out.println("Applied rule: Nephropathy Management");
+end
+
+// =============================================
+// STATIN AND ASPIRIN THERAPY
+// =============================================
+
+// Rule 21: Statin Therapy Indication
+rule "Statin Therapy for Diabetes"
+    when
+        $patient: PatientData(
+            demographics.age >= 40 && demographics.age <= 75
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addMedication("Statin therapy recommended for all diabetic patients 40-75 years");
+
+        String currentAdvice = $decision.getPatientAdvice();
+        $decision.setPatientAdvice(currentAdvice + " Statin therapy recommended for cardiovascular risk reduction.");
+
+        System.out.println("Applied rule: Statin Therapy for Diabetes");
+end
+
+// Rule 22: Aspirin Therapy Consideration
+rule "Aspirin Therapy Consideration"
+    when
+        $patient: PatientData(
+            medicalHistory.cardiovascularRiskFactors == true
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addMedication("Consider Aspirin 75-162 mg/day for primary prevention in increased CV risk");
+
+        System.out.println("Applied rule: Aspirin Therapy Consideration");
+end
+
+// =============================================
+// EMERGENCY SITUATIONS - DKA SUSPICION
+// =============================================
+
+// Rule 23: Diabetic Ketoacidosis Suspicion
+rule "DKA Suspicion"
+    when
+        $patient: PatientData(
+            (investigations.bloodGlucose > 13.9 || medicalHistory.ketonuria == true) &&
+            (medicalHistory.abdominalPain == true || medicalHistory.nauseaVomiting == true ||
+             medicalHistory.dehydration == true || medicalHistory.rapidBreathing == true)
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.setNeedsReferral(true);
+        $decision.setReferralReason("Suspected Diabetic Ketoacidosis - EMERGENCY");
+
+        $decision.setPatientAdvice("DIABETIC EMERGENCY: Possible ketoacidosis. Immediate medical attention required. Go to emergency department. IV fluids and insulin needed.");
+
+        System.out.println("Applied rule: DKA Suspicion");
+end
+
+// Rule 24: Hyperglycemic Emergency - Transfer Indication
+rule "Hyperglycemic Emergency Transfer"
+    when
+        $patient: PatientData(
+            investigations.bloodGlucose > 22.2 || // >400 mg/dl
+            (investigations.bloodGlucose >= 11.1 && investigations.bloodGlucose <= 22.2 &&
+             medicalHistory.dangerSigns == true)
+        )
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.setNeedsReferral(true);
+        $decision.setReferralReason("Severe hyperglycemia with danger signs - Transfer to District Hospital");
+
+        $decision.setPatientAdvice("EMERGENCY: Severe hyperglycemia with danger signs (dehydration, abdominal pain, hypotension, confusion). Immediate transfer to hospital required.");
+
+        System.out.println("Applied rule: Hyperglycemic Emergency Transfer");
+end
+
+// =============================================
+// LIFESTYLE AND PATIENT EDUCATION
+// =============================================
+
+// Rule 25: Diabetes Lifestyle Recommendations
+rule "Diabetes Lifestyle Modifications"
+    when
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        String currentAdvice = $decision.getPatientAdvice();
+        String lifestyleAdvice = "Lifestyle: Low-fat, low-carbohydrate diet. Avoid sugar, sweets, juice, Fanta. Physical activity 30min/day, 5 days/week. Smoking cessation. Diabetes education.";
+
+        if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
+            $decision.setPatientAdvice(currentAdvice + " " + lifestyleAdvice);
+        } else {
+            $decision.setPatientAdvice(lifestyleAdvice);
+        }
+
+        System.out.println("Applied rule: Diabetes Lifestyle Modifications");
+end
+
+// Rule 26: Diet Education Specifics
+rule "Diet Education Details"
+    when
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        String currentAdvice = $decision.getPatientAdvice();
+        String dietAdvice = "Diet: 50% vegetables, small portion of one carbohydrate variety per meal (maize, rice, cassava, potatoes), portion of protein (beans, fish, meat), small oil, 1-2 fruits. Avoid sugar, sweets, biscuits, cakes, juice.";
+
+        if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
+            $decision.setPatientAdvice(currentAdvice + " " + dietAdvice);
+        } else {
+            $decision.setPatientAdvice(dietAdvice);
+        }
+
+        System.out.println("Applied rule: Diet Education Details");
+end
+
+// Rule 27: Follow-up Testing Recommendations
+rule "Diabetes Follow-up Testing"
+    when
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        $decision.addTest("HbA1c every 3-6 months");
+        $decision.addTest("Urine protein every 3-6 months");
+        $decision.addTest("Serum creatinine annually");
+        $decision.addTest("Fasting lipid profile annually");
+        $decision.addTest("Liver function tests annually");
+
+        System.out.println("Applied rule: Diabetes Follow-up Testing");
+end
+
+// =============================================
+// HYPOGLYCEMIA MANAGEMENT
+// =============================================
+
+// Rule 28: Hypoglycemia Management
+rule "Hypoglycemia Management Education"
+    when
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        String currentAdvice = $decision.getPatientAdvice();
+        String hypoAdvice = "Hypoglycemia management: For BG <70mg/dl, take 15g fast-acting carbs (3 tsp sugar, 150ml juice, 1 tbsp honey). Repeat after 15 minutes if still low. Always carry sugar source.";
+
+        if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
+            $decision.setPatientAdvice(currentAdvice + " " + hypoAdvice);
+        } else {
+            $decision.setPatientAdvice(hypoAdvice);
+        }
+
+        System.out.println("Applied rule: Hypoglycemia Management Education");
+end
+
+// Rule 29: Risk Factor Identification
+rule "Diabetes Risk Factors Identification"
+    when
+        $patient: PatientData(
+            demographics.age > 40 ||
+            medicalHistory.overweight == true ||
+            medicalHistory.familyHistoryDiabetes == true ||
+            medicalHistory.historyGDM == true ||
+            medicalHistory.hivPositive == true
+        )
+        not ClinicalDecision(diagnosis == "Diabetes Mellitus")
+        not ClinicalDecision(diagnosis == "Prediabetes")
+    then
+        ClinicalDecision decision = new ClinicalDecision();
+        decision.setDiagnosis("High Risk for Diabetes");
+        decision.setStage("Risk Factors Present");
+        decision.setPatientAdvice("High risk for diabetes due to age >40, overweight, family history, history GDM, or HIV. Consider annual screening.");
+        decision.setConfidenceLevel("MODERATE");
+        decision.addTest("Annual diabetes screening recommended");
+        $patient.addDecision(decision);
+        System.out.println("Applied rule: Diabetes Risk Factors Identification");
+end

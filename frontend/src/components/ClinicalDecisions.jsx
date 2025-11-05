@@ -6,7 +6,7 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
       <div className="flex flex-col items-center justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-200 border-t-primary-600 mb-4"></div>
         <p className="text-gray-600">Analyzing patient data...</p>
-        <p className="text-sm text-gray-500 mt-2">Applying Hypertension Guidelines</p>
+        <p className="text-sm text-gray-500 mt-2">Applying Clinical Guidelines</p>
       </div>
     );
   }
@@ -14,10 +14,9 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
   if (!decisions || decisions.length === 0) {
     return (
       <div className="text-center py-12">
-        <div className="text-6xl mb-4">🏥</div>
         <h3 className="text-xl font-semibold text-gray-900 mb-2">Clinical Decisions</h3>
         <p className="text-gray-600 max-w-md mx-auto">
-          Enter patient data and click "Get Clinical Recommendations" to see hypertension staging and treatment guidance based on guidelines.
+          Enter patient data and click "Get Clinical Recommendations" to see clinical staging and treatment guidance based on guidelines.
         </p>
       </div>
     );
@@ -31,11 +30,16 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
     }`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <h4 className="text-xl font-bold text-gray-900">{decision.diagnosis}</h4>
           {decision.stage && (
             <span className="px-3 py-1 bg-primary-100 text-primary-800 text-sm font-medium rounded-full">
               {decision.stage}
+            </span>
+          )}
+          {decision.sub_classification && (
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+              {decision.sub_classification}
             </span>
           )}
         </div>
@@ -61,13 +65,13 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
       )}
 
       {/* Medications */}
-      {decision.recommended_medications.length > 0 && (
+      {decision.medications && decision.medications.length > 0 && (
         <div className="mb-4">
           <h5 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-            Recommended Medications
+            <span className="text-lg">💊</span> Recommended Medications
           </h5>
           <ul className="space-y-1">
-            {decision.recommended_medications.map((med, idx) => (
+            {decision.medications.map((med, idx) => (
               <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                 <span className="text-primary-500 mt-1">•</span>
                 {med}
@@ -78,13 +82,13 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
       )}
 
       {/* Tests */}
-      {decision.recommended_tests.length > 0 && (
+      {decision.tests && decision.tests.length > 0 && (
         <div className="mb-4">
           <h5 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
             <span className="text-lg">🔬</span> Recommended Tests
           </h5>
           <ul className="space-y-1">
-            {decision.recommended_tests.map((test, idx) => (
+            {decision.tests.map((test, idx) => (
               <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                 <span className="text-primary-500 mt-1">•</span>
                 {test}
@@ -110,13 +114,55 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
       {decision.referral_reason && (
         <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
           <h5 className="font-semibold text-red-900 mb-1 flex items-center gap-2">
-            Referral Reason
+            <span className="text-lg">🚨</span> Referral Reason
           </h5>
           <p className="text-sm text-red-700">{decision.referral_reason}</p>
         </div>
       )}
     </div>
   );
+
+  // Helper function to get relevant patient data for display
+  const getPatientSummary = () => {
+    if (!patientData) return null;
+
+    const summary = [];
+    
+    // Blood Pressure
+    if (patientData.physical_examination?.systole && patientData.physical_examination?.diastole) {
+      summary.push(`BP: ${patientData.physical_examination.systole}/${patientData.physical_examination.diastole} mmHg`);
+    }
+
+    // Age and Gender
+    if (patientData.demographics?.age) {
+      summary.push(`Age: ${patientData.demographics.age} years`);
+    }
+    if (patientData.demographics?.gender) {
+      summary.push(`Gender: ${patientData.demographics.gender}`);
+    }
+
+    // Diabetes-specific data
+    if (patientData.investigations?.hba1c) {
+      summary.push(`HbA1c: ${patientData.investigations.hba1c}%`);
+    }
+    if (patientData.investigations?.fasting_glucose) {
+      summary.push(`Fasting Glucose: ${patientData.investigations.fasting_glucose} mmol/L`);
+    }
+    if (patientData.investigations?.egfr) {
+      summary.push(`eGFR: ${patientData.investigations.egfr} mL/min/1.73m²`);
+    }
+
+    // BMI if available
+    if (patientData.physical_examination?.height && patientData.physical_examination?.weight) {
+      const heightInMeters = patientData.physical_examination.height / 100;
+      const bmi = (patientData.physical_examination.weight / (heightInMeters * heightInMeters)).toFixed(1);
+      summary.push(`BMI: ${bmi}`);
+    }
+
+    return summary;
+  };
+
+  const patientSummary = getPatientSummary();
 
   return (
     <div>
@@ -134,19 +180,35 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
       </div>
 
       {/* Patient Summary */}
-      {patientData && (
+      {patientSummary && patientSummary.length > 0 && (
         <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
-          <h5 className="font-semibold text-gray-900 mb-2">Patient Summary</h5>
-          <div className="text-sm text-gray-700 space-y-1">
-            <p>
-              <strong>BP:</strong> {patientData.physical_examination.systole}/{patientData.physical_examination.diastole} mmHg
-            </p>
-            {patientData.demographics.age && (
-              <p><strong>Age:</strong> {patientData.demographics.age} years</p>
-            )}
-            {patientData.demographics.gender && (
-              <p><strong>Gender:</strong> {patientData.demographics.gender}</p>
-            )}
+          <h5 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+            <span className="text-lg">📋</span> Patient Summary
+          </h5>
+          <div className="text-sm text-gray-700">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {patientSummary.map((item, index) => (
+                <div key={index} className="flex items-center">
+                  <span className="text-primary-500 mr-2">•</span>
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Emergency Warning */}
+      {decisions.some(d => d.needs_referral && d.referral_reason?.toLowerCase().includes('emergency')) && (
+        <div className="mt-6 p-4 bg-red-50 border border-red-300 rounded-lg">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🚨</span>
+            <div>
+              <h5 className="font-bold text-red-900">Medical Emergency Detected</h5>
+              <p className="text-sm text-red-700 mt-1">
+                Immediate medical attention required. Please refer patient to emergency care.
+              </p>
+            </div>
           </div>
         </div>
       )}
