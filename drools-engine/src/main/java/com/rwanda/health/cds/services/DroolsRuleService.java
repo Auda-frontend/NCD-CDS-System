@@ -6,11 +6,12 @@ import org.kie.api.builder.KieFileSystem;
 import org.kie.api.builder.Message;
 import org.kie.api.runtime.KieContainer;
 import org.kie.api.runtime.KieSession;
-import org.kie.internal.io.ResourceFactory;
 import com.rwanda.health.cds.models.PatientData;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DroolsRuleService {
     private KieContainer kieContainer;
@@ -22,16 +23,27 @@ public class DroolsRuleService {
             KieServices kieServices = KieServices.Factory.get();
             KieFileSystem kfs = kieServices.newKieFileSystem();
 
-            // Load DRL content directly from classpath
-            String drlContent = loadDrlFromClasspath();
-            if (drlContent == null || drlContent.trim().isEmpty()) {
-                throw new IllegalStateException("Failed to load DRL rules from classpath");
+            // Load both hypertension and diabetes DRL content
+            List<String> drlFiles = new ArrayList<>();
+            drlFiles.add("HypertensionRules.drl");
+            drlFiles.add("DiabetesRules.drl");
+
+            boolean rulesLoaded = false;
+
+            for (String drlFile : drlFiles) {
+                String drlContent = loadDrlFromClasspath(drlFile);
+                if (drlContent != null && !drlContent.trim().isEmpty()) {
+                    kfs.write("src/main/resources/" + drlFile, drlContent);
+                    System.out.println("Loaded " + drlFile + " (" + drlContent.length() + " characters)");
+                    rulesLoaded = true;
+                } else {
+                    System.err.println("Failed to load: " + drlFile);
+                }
             }
 
-            System.out.println("Loaded DRL rules (" + drlContent.length() + " characters)");
-
-            // Write DRL to KieFileSystem
-            kfs.write("src/main/resources/rules.drl", drlContent);
+            if (!rulesLoaded) {
+                throw new IllegalStateException("Failed to load any DRL rules from classpath");
+            }
 
             // Build the KieBase
             KieBuilder kieBuilder = kieServices.newKieBuilder(kfs);
@@ -47,7 +59,7 @@ public class DroolsRuleService {
             }
 
             this.kieContainer = kieServices.newKieContainer(kieServices.getRepository().getDefaultReleaseId());
-            System.out.println("KieContainer created successfully");
+            System.out.println("KieContainer created successfully with both hypertension and diabetes rules");
 
         } catch (Exception e) {
             System.err.println("Drools initialization failed: " + e.getMessage());
@@ -56,63 +68,108 @@ public class DroolsRuleService {
         }
     }
 
-    private String loadDrlFromClasspath() {
+    private String loadDrlFromClasspath(String drlFileName) {
         try {
             // Try multiple classpath locations
             String[] possiblePaths = {
-                    "com/rwanda/health/cds/rules/HypertensionRules.drl",
-                    "/com/rwanda/health/cds/rules/HypertensionRules.drl",
-                    "BOOT-INF/classes/com/rwanda/health/cds/rules/HypertensionRules.drl"
+                    "com/rwanda/health/cds/rules/" + drlFileName,
+                    "/com/rwanda/health/cds/rules/" + drlFileName,
+                    "BOOT-INF/classes/com/rwanda/health/cds/rules/" + drlFileName,
+                    "rules/" + drlFileName,
+                    "/rules/" + drlFileName
             };
 
             for (String path : possiblePaths) {
                 try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
                     if (is != null) {
-                        System.out.println("Found DRL at: " + path);
-                        return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                        System.out.println("Found " + drlFileName + " at: " + path);
+                        String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+
+                        // Validate that we actually got DRL content
+                        if (content.contains("package") && content.contains("rule")) {
+                            return content;
+                        } else {
+                            System.err.println("Invalid DRL content in " + path);
+                        }
                     }
                 }
             }
 
             // Last resort: try file system
-            System.out.println("Trying file system...");
+            System.out.println("Trying file system for: " + drlFileName);
             try {
-                java.nio.file.Path fsPath = java.nio.file.Paths.get("src/main/resources/com/rwanda/health/cds/rules/HypertensionRules.drl");
+                java.nio.file.Path fsPath = java.nio.file.Paths.get("src/main/resources/com/rwanda/health/cds/rules/" + drlFileName);
                 if (java.nio.file.Files.exists(fsPath)) {
-                    System.out.println("Found DRL on file system");
-                    return java.nio.file.Files.readString(fsPath);
+                    System.out.println("Found " + drlFileName + " on file system");
+                    String content = java.nio.file.Files.readString(fsPath);
+                    if (content.contains("package") && content.contains("rule")) {
+                        return content;
+                    }
                 }
             } catch (Exception e) {
-                System.err.println("File system check failed: " + e.getMessage());
+                System.err.println("File system check failed for " + drlFileName + ": " + e.getMessage());
             }
 
-            System.err.println("Could not find DRL file in any location");
+            System.err.println("Could not find " + drlFileName + " in any location");
             return null;
 
         } catch (Exception e) {
-            System.err.println("Error loading DRL: " + e.getMessage());
+            System.err.println("Error loading " + drlFileName + ": " + e.getMessage());
             return null;
         }
     }
 
     public PatientData evaluatePatient(PatientData patientData) {
-        System.out.println("Evaluating patient with BP: " +
-                patientData.getPhysicalExamination().getSystole() + "/" +
-                patientData.getPhysicalExamination().getDiastole());
+        System.out.println("Evaluating patient data:");
+        System.out.println("  BP: " + patientData.getPhysicalExamination().getSystole() +
+                "/" + patientData.getPhysicalExamination().getDiastole());
+
+        if (patientData.getMedicalHistory() != null) {
+            System.out.println("  Diabetes: " + patientData.getMedicalHistory().isDiabetes());
+            System.out.println("  Hypertension: " + patientData.getMedicalHistory().isHypertension());
+        }
+
+        if (patientData.getInvestigations() != null) {
+            System.out.println("  HbA1c: " + patientData.getInvestigations().getHba1c());
+            System.out.println("  Fasting Glucose: " + patientData.getInvestigations().getFastingGlucose());
+        }
 
         KieSession kieSession = null;
         try {
             kieSession = kieContainer.newKieSession();
-            System.out.println("KieSession created");
+            System.out.println("KieSession created for both hypertension and diabetes rules");
 
+            // Insert patient data
             kieSession.insert(patientData);
-            System.out.println("PatientData inserted");
+            System.out.println("PatientData inserted into session");
 
+            // Fire all rules
             int rulesFired = kieSession.fireAllRules();
-            System.out.println("Rules fired: " + rulesFired);
+            System.out.println("Total rules fired: " + rulesFired);
+
+            // Log detailed information about decisions
+            if (patientData.getDecisions() != null) {
+                System.out.println("Clinical decisions made: " + patientData.getDecisions().size());
+                for (int i = 0; i < patientData.getDecisions().size(); i++) {
+                    var decision = patientData.getDecisions().get(i);
+                    System.out.println("  Decision " + (i + 1) + ": " +
+                            decision.getDiagnosis() + " (" + decision.getStage() + ")");
+                    if (decision.getSubClassification() != null) {
+                        System.out.println("    Type: " + decision.getSubClassification());
+                    }
+                }
+            }
 
             if (rulesFired == 0) {
-                System.err.println("No rules fired! Check rule conditions");
+                System.err.println("WARNING: No rules fired! Check rule conditions and patient data");
+                System.err.println("Patient data summary:");
+                System.err.println("  Has diabetes: " + (patientData.getMedicalHistory() != null && patientData.getMedicalHistory().isDiabetes()));
+                System.err.println("  Has hypertension: " + (patientData.getMedicalHistory() != null && patientData.getMedicalHistory().isHypertension()));
+                System.err.println("  Has investigations: " + (patientData.getInvestigations() != null));
+                if (patientData.getInvestigations() != null) {
+                    System.err.println("  HbA1c: " + patientData.getInvestigations().getHba1c());
+                    System.err.println("  Fasting glucose: " + patientData.getInvestigations().getFastingGlucose());
+                }
             }
 
             return patientData;
@@ -126,6 +183,27 @@ public class DroolsRuleService {
                 kieSession.dispose();
                 System.out.println("KieSession disposed");
             }
+        }
+    }
+
+    // Method to test individual rule sets
+    public void testRuleLoading() {
+        System.out.println("Testing rule loading...");
+
+        String hypertensionRules = loadDrlFromClasspath("HypertensionRules.drl");
+        String diabetesRules = loadDrlFromClasspath("DiabetesRules.drl");
+
+        System.out.println("Hypertension rules loaded: " + (hypertensionRules != null));
+        System.out.println("Diabetes rules loaded: " + (diabetesRules != null));
+
+        if (hypertensionRules != null) {
+            System.out.println("Hypertension rules contain 'package': " + hypertensionRules.contains("package"));
+            System.out.println("Hypertension rules contain 'rule': " + hypertensionRules.contains("rule"));
+        }
+
+        if (diabetesRules != null) {
+            System.out.println("Diabetes rules contain 'package': " + diabetesRules.contains("package"));
+            System.out.println("Diabetes rules contain 'rule': " + diabetesRules.contains("rule"));
         }
     }
 }
