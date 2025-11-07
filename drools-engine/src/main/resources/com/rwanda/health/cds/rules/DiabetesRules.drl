@@ -39,7 +39,7 @@ rule "Diabetes Diagnosis by Fasting Glucose"
         $patient: PatientData(
             investigations.fastingGlucose >= 7.0
         )
-        not ClinicalDecision(diagnosis == "Diabetes Mellitus")
+        not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         ClinicalDecision decision = new ClinicalDecision();
         decision.setDiagnosis("Diabetes Mellitus");
@@ -58,7 +58,7 @@ rule "Diabetes Diagnosis by Random Glucose with Symptoms"
             investigations.randomGlucose >= 11.1,
             medicalHistory.diabetesSymptoms == true
         )
-        not ClinicalDecision(diagnosis == "Diabetes Mellitus")
+        not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         ClinicalDecision decision = new ClinicalDecision();
         decision.setDiagnosis("Diabetes Mellitus");
@@ -77,7 +77,7 @@ rule "Prediabetes Identification"
             (investigations.hba1c >= 5.7 && investigations.hba1c < 6.5) ||
             (investigations.fastingGlucose >= 5.6 && investigations.fastingGlucose < 7.0)
         )
-        not ClinicalDecision(diagnosis == "Diabetes Mellitus")
+        not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         ClinicalDecision decision = new ClinicalDecision();
         decision.setDiagnosis("Prediabetes");
@@ -115,7 +115,7 @@ rule "Type 2 Diabetes Classification"
             medicalHistory.obesity == true || medicalHistory.familyHistoryDiabetes == true
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
-        not ClinicalDecision(subClassification == "Type 1 Diabetes")
+        not ClinicalDecision(subClassification == "Type 1 Diabetes") from $patient.getDecisions()
     then
         $decision.setSubClassification("Type 2 Diabetes");
         System.out.println("Applied rule: Type 2 Diabetes Classification");
@@ -258,6 +258,7 @@ end
 // Rule 13: Type 1 Diabetes Insulin Requirement
 rule "Type 1 Diabetes Insulin Therapy"
     when
+        $patient: PatientData()
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 1 Diabetes") from $patient.getDecisions()
     then
         $decision.addMedication("INSULIN THERAPY REQUIRED for Type 1 Diabetes");
@@ -344,6 +345,7 @@ end
 // Rule 17: Retinopathy Screening
 rule "Retinopathy Screening"
     when
+        $patient: PatientData()
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         $decision.addTest("Annual dilated eye examination for retinopathy");
@@ -358,6 +360,7 @@ end
 // Rule 18: Neuropathy Screening
 rule "Neuropathy Screening"
     when
+        $patient: PatientData()
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         $decision.addTest("Annual foot examination for sensation");
@@ -439,11 +442,11 @@ end
 // EMERGENCY SITUATIONS - DKA SUSPICION
 // =============================================
 
-// Rule 23: Diabetic Ketoacidosis Suspicion
+// Rule 23: Diabetic Ketoacidosis Suspicion - FIXED
 rule "DKA Suspicion"
     when
         $patient: PatientData(
-            (investigations.bloodGlucose > 13.9 || medicalHistory.ketonuria == true) &&
+            (investigations.bloodGlucose > 13.9 || investigations.ketonuria == true) &&
             (medicalHistory.abdominalPain == true || medicalHistory.nauseaVomiting == true ||
              medicalHistory.dehydration == true || medicalHistory.rapidBreathing == true)
         )
@@ -479,9 +482,10 @@ end
 // LIFESTYLE AND PATIENT EDUCATION
 // =============================================
 
-// Rule 25: Diabetes Lifestyle Recommendations
+// Rule 25: Diabetes Lifestyle Recommendations - FIXED
 rule "Diabetes Lifestyle Modifications"
     when
+        $patient: PatientData()
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         String currentAdvice = $decision.getPatientAdvice();
@@ -499,6 +503,7 @@ end
 // Rule 26: Diet Education Specifics
 rule "Diet Education Details"
     when
+        $patient: PatientData()
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         String currentAdvice = $decision.getPatientAdvice();
@@ -516,6 +521,7 @@ end
 // Rule 27: Follow-up Testing Recommendations
 rule "Diabetes Follow-up Testing"
     when
+        $patient: PatientData()
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         $decision.addTest("HbA1c every 3-6 months");
@@ -531,9 +537,10 @@ end
 // HYPOGLYCEMIA MANAGEMENT
 // =============================================
 
-// Rule 28: Hypoglycemia Management
+// Rule 28: Hypoglycemia Management Education
 rule "Hypoglycemia Management Education"
     when
+        $patient: PatientData()
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         String currentAdvice = $decision.getPatientAdvice();
@@ -558,8 +565,8 @@ rule "Diabetes Risk Factors Identification"
             medicalHistory.historyGDM == true ||
             medicalHistory.hivPositive == true
         )
-        not ClinicalDecision(diagnosis == "Diabetes Mellitus")
-        not ClinicalDecision(diagnosis == "Prediabetes")
+        not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+        not ClinicalDecision(diagnosis == "Prediabetes") from $patient.getDecisions()
     then
         ClinicalDecision decision = new ClinicalDecision();
         decision.setDiagnosis("High Risk for Diabetes");
