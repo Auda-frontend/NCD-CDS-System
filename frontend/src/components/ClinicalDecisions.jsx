@@ -1,6 +1,52 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const ClinicalDecisions = ({ decisions, patientData, loading }) => {
+  // State to track selected medications and tests for each decision
+  const [selectedItems, setSelectedItems] = useState({});
+
+  // Debug logging
+  useEffect(() => {
+    console.log('ClinicalDecisions - decisions prop:', decisions);
+    console.log('ClinicalDecisions - decisions type:', typeof decisions);
+    console.log('ClinicalDecisions - decisions length:', decisions?.length);
+    console.log('ClinicalDecisions - loading:', loading);
+  }, [decisions, loading]);
+
+  // Initialize selections when decisions change
+  useEffect(() => {
+    if (decisions && decisions.length > 0) {
+      console.log('Initializing selections for', decisions.length, 'decisions');
+      const initialSelections = {};
+      decisions.forEach((decision, decisionIndex) => {
+        initialSelections[decisionIndex] = {
+          medications: {},
+          tests: {}
+        };
+      });
+      setSelectedItems(initialSelections);
+    }
+  }, [decisions]);
+
+  // Handle checkbox change for medications or tests
+  const handleItemToggle = (decisionIndex, type, itemIndex, checked) => {
+    setSelectedItems(prev => ({
+      ...prev,
+      [decisionIndex]: {
+        ...prev[decisionIndex],
+        [type]: {
+          ...prev[decisionIndex]?.[type],
+          [itemIndex]: checked
+        }
+      }
+    }));
+  };
+
+  // Check if any items are selected in a category
+  const hasSelectedItems = (decisionIndex, type) => {
+    const items = selectedItems[decisionIndex]?.[type] || {};
+    return Object.values(items).some(selected => selected === true);
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
@@ -11,18 +57,30 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
     );
   }
 
-  if (!decisions || decisions.length === 0) {
+  // Handle case where decisions might be undefined, null, or empty
+  const hasDecisions = decisions && Array.isArray(decisions) && decisions.length > 0;
+  
+  if (!hasDecisions && !loading) {
     return (
       <div className="text-center py-12">
         <h3 className="text-xl font-semibold text-gray-900 mb-2">Clinical Decisions</h3>
         <p className="text-gray-600 max-w-md mx-auto">
           Enter patient data and click "Get Clinical Recommendations" to see clinical staging and treatment guidance based on guidelines.
         </p>
+        {decisions && !Array.isArray(decisions) && (
+          <p className="text-red-600 text-sm mt-4">
+            Warning: Decisions data is not in expected format. Check console for details.
+          </p>
+        )}
       </div>
     );
   }
 
-  const DecisionCard = ({ decision, index }) => (
+  const DecisionCard = ({ decision, index }) => {
+    const hasSelectedMeds = hasSelectedItems(index, 'medications');
+    const hasSelectedTests = hasSelectedItems(index, 'tests');
+
+    return (
     <div className={`border rounded-xl p-6 mb-4 transition-all duration-200 ${
       decision.needs_referral 
         ? 'border-red-300 bg-red-50/50 border-l-4 border-l-red-500' 
@@ -67,34 +125,94 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
       {/* Medications */}
       {decision.medications && decision.medications.length > 0 && (
         <div className="mb-4">
-          <h5 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span className="text-lg">💊</span> Recommended Medications
+            <span className="text-xs font-normal text-gray-500 ml-2">
+              (Select medications to prescribe)
+            </span>
           </h5>
-          <ul className="space-y-1">
-            {decision.medications.map((med, idx) => (
-              <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
-                <span className="text-primary-500 mt-1">•</span>
-                {med}
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-2">
+            {decision.medications.map((med, idx) => {
+              const isChecked = selectedItems[index]?.medications?.[idx] === true;
+              const isUnselected = hasSelectedMeds && !isChecked;
+              
+              return (
+                <label
+                  key={idx}
+                  className={`flex items-start gap-3 p-2 rounded-lg border transition-all cursor-pointer ${
+                    isChecked
+                      ? 'bg-primary-50 border-primary-300 shadow-sm'
+                      : isUnselected
+                      ? 'bg-gray-50 border-gray-200 opacity-50'
+                      : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked || false}
+                    onChange={(e) => handleItemToggle(index, 'medications', idx, e.target.checked)}
+                    className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  />
+                  <span className={`text-sm flex-1 ${
+                    isChecked
+                      ? 'text-gray-900 font-medium'
+                      : isUnselected
+                      ? 'text-gray-400'
+                      : 'text-gray-700'
+                  }`}>
+                    {med}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* Tests */}
       {decision.tests && decision.tests.length > 0 && (
         <div className="mb-4">
-          <h5 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span className="text-lg">🔬</span> Recommended Tests
+            <span className="text-xs font-normal text-gray-500 ml-2">
+              (Select tests to order)
+            </span>
           </h5>
-          <ul className="space-y-1">
-            {decision.tests.map((test, idx) => (
-              <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
-                <span className="text-primary-500 mt-1">•</span>
-                {test}
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-2">
+            {decision.tests.map((test, idx) => {
+              const isChecked = selectedItems[index]?.tests?.[idx] === true;
+              const isUnselected = hasSelectedTests && !isChecked;
+              
+              return (
+                <label
+                  key={idx}
+                  className={`flex items-start gap-3 p-2 rounded-lg border transition-all cursor-pointer ${
+                    isChecked
+                      ? 'bg-blue-50 border-blue-300 shadow-sm'
+                      : isUnselected
+                      ? 'bg-gray-50 border-gray-200 opacity-50'
+                      : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked || false}
+                    onChange={(e) => handleItemToggle(index, 'tests', idx, e.target.checked)}
+                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className={`text-sm flex-1 ${
+                    isChecked
+                      ? 'text-gray-900 font-medium'
+                      : isUnselected
+                      ? 'text-gray-400'
+                      : 'text-gray-700'
+                  }`}>
+                    {test}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -120,7 +238,8 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   // Helper function to get relevant patient data for display
   const getPatientSummary = () => {
@@ -168,15 +287,23 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
     <div>
       <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
         Clinical Decisions
-        <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
-          {decisions.length} recommendation{decisions.length !== 1 ? 's' : ''}
-        </span>
+        {hasDecisions && (
+          <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
+            {decisions.length} recommendation{decisions.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </h3>
 
       <div className="space-y-4">
-        {decisions.map((decision, index) => (
-          <DecisionCard key={index} decision={decision} index={index} />
-        ))}
+        {hasDecisions ? (
+          decisions.map((decision, index) => (
+            <DecisionCard key={index} decision={decision} index={index} />
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No clinical decisions available
+          </div>
+        )}
       </div>
 
       {/* Patient Summary */}
@@ -199,7 +326,7 @@ const ClinicalDecisions = ({ decisions, patientData, loading }) => {
       )}
 
       {/* Emergency Warning */}
-      {decisions.some(d => d.needs_referral && d.referral_reason?.toLowerCase().includes('emergency')) && (
+      {hasDecisions && decisions.some(d => d.needs_referral && d.referral_reason?.toLowerCase().includes('emergency')) && (
         <div className="mt-6 p-4 bg-red-50 border border-red-300 rounded-lg">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🚨</span>

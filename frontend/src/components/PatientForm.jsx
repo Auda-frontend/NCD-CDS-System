@@ -1,4 +1,4 @@
-import React, { useReducer } from 'react';
+import React, { useReducer, useCallback, memo,useEffect } from 'react';
 
 const initialState = {
   demographics: {
@@ -16,7 +16,6 @@ const initialState = {
     consultation_type: 'initial'
   },
   medical_history: {
-    // Existing fields
     hypertension: false,
     diabetes: false,
     chronic_kidney_disease: false,
@@ -33,8 +32,6 @@ const initialState = {
     current_smoker: false,
     former_alcohol: false,
     current_alcohol: false,
-    
-    // Diabetes-specific fields
     diabetes_symptoms: false,
     diabetes_onset: '',
     ketoacidosis_history: false,
@@ -84,8 +81,10 @@ const initialState = {
   }
 };
 
+// ✅ Focus-safe reducer (prevents full rerender)
 const reducer = (state, action) => {
   const { section, field, value } = action;
+  if (state[section][field] === value) return state; // skip unnecessary re-renders
   return {
     ...state,
     [section]: {
@@ -95,25 +94,72 @@ const reducer = (state, action) => {
   };
 };
 
+// ✅ Memoized reusable section
+const FormSection = memo(({ title, children }) => (
+  <div className="border border-gray-200 rounded-lg p-6 bg-gray-50/50">
+    <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+    {children}
+  </div>
+));
+
 const PatientForm = ({ onSubmit, loading }) => {
   const [formData, dispatch] = useReducer(reducer, initialState);
 
-  const handleInputChange = (section, field, value) => {
+  const handleInputChange = useCallback((section, field, value) => {
     dispatch({ section, field, value });
-  };
+  }, []);
 
-  const handleNumberChange = (section, field, value) => {
+  const handleNumberChange = useCallback((section, field, value) => {
     const numValue = value === '' ? null : Number(value);
     if (value === '' || !isNaN(numValue)) {
       handleInputChange(section, field, numValue);
     }
-  };
+  }, [handleInputChange]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(formData);
   };
 
+  const preventInvalidNumber = (e) => {
+    if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+  };
+
+    // Automatic eGFR Calculation
+  useEffect(() => {
+    const age = formData.demographics.age;
+    const gender = formData.demographics.gender;
+    const weight = formData.physical_examination.weight;
+    const serumCreatinine = formData.investigations.serum_creatinine;
+
+    if (age && gender && weight && serumCreatinine) {
+      const factor = gender === "Male" ? 1.23 : 1.04;
+      let creatinineValue = serumCreatinine;
+
+      // If value seems in mg/dL (typical human range < 20), convert to µmol/L
+      if (creatinineValue < 20) {
+        creatinineValue = creatinineValue * 88.4;
+      }
+
+      const egfr =
+        ((140 - age) * weight * factor) / creatinineValue;
+
+      if (!isNaN(egfr) && egfr > 0) {
+        handleInputChange(
+          "investigations",
+          "egfr",
+          Number(egfr.toFixed(2))
+        );
+      }
+    }
+  }, [
+    formData.demographics.age,
+    formData.demographics.gender,
+    formData.physical_examination.weight,
+    formData.investigations.serum_creatinine,
+  ]);
+
+  // BMI calculation
   const calculateBMI = () => {
     const height = formData.physical_examination.height;
     const weight = formData.physical_examination.weight;
@@ -135,20 +181,6 @@ const PatientForm = ({ onSubmit, loading }) => {
       : 'Obese'
     : null;
 
-  const FormSection = ({ title, children }) => (
-    <div className="border border-gray-200 rounded-lg p-6 bg-gray-50/50">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
-      {children}
-    </div>
-  );
-
-  const preventInvalidNumber = (e) => {
-    if (['e', 'E', '+', '-'].includes(e.key)) {
-      e.preventDefault();
-    }
-  };
-
-  // Show diabetes-specific fields when diabetes is checked
   const showDiabetesFields = formData.medical_history.diabetes;
 
   return (
@@ -160,150 +192,137 @@ const PatientForm = ({ onSubmit, loading }) => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
             <input
               type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               value={formData.demographics.full_name}
               onChange={(e) => handleInputChange('demographics', 'full_name', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               value={formData.demographics.gender}
               onChange={(e) => handleInputChange('demographics', 'gender', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">Select Gender</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
             <input
               type="number"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               value={formData.demographics.age ?? ''}
               onChange={(e) => handleNumberChange('demographics', 'age', e.target.value)}
               onKeyDown={preventInvalidNumber}
               placeholder="30"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
         </div>
+      </FormSection>
+
+      {/* Consultation */}
+      <FormSection title="Consultation">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Chief Complaint</label>
+        <textarea
+          rows="3"
+          value={formData.consultation.chief_complaint}
+          onChange={(e) => handleInputChange('consultation', 'chief_complaint', e.target.value)}
+          placeholder="Describe the patient's main concerns..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+        />
       </FormSection>
 
       {/* Medical History */}
       <FormSection title="Medical History">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {[
-            { key: 'hypertension', label: 'Hypertension' },
-            { key: 'diabetes', label: 'Diabetes' },
-            { key: 'chronic_kidney_disease', label: 'CKD' },
-            { key: 'asthma', label: 'Asthma' },
-            { key: 'copd', label: 'COPD' },
-            { key: 'cad', label: 'CAD' },
-            { key: 'hyperkalemia', label: 'Hyperkalemia' },
-            { key: 'pregnant', label: 'Pregnant' },
-            { key: 'stroke_history', label: 'Stroke History' },
-            { key: 'heart_failure', label: 'Heart Failure' }
-          ].map(({ key, label }) => (
+            'hypertension',
+            'diabetes',
+            'chronic_kidney_disease',
+            'asthma',
+            'copd',
+            'cad',
+            'hyperkalemia',
+            'pregnant',
+            'stroke_history',
+            'heart_failure'
+          ].map((key) => (
             <label key={key} className="flex items-center space-x-2">
               <input
                 type="checkbox"
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                 checked={formData.medical_history[key]}
                 onChange={(e) => handleInputChange('medical_history', key, e.target.checked)}
               />
-              <span className="text-sm text-gray-700">{label}</span>
+              <span className="text-sm text-gray-700 capitalize">
+                {key.replace(/_/g, ' ')}
+              </span>
             </label>
           ))}
         </div>
 
-        {/* Diabetes-specific medical history */}
         {showDiabetesFields && (
           <div className="mt-6 p-4 border border-primary-200 rounded-lg bg-primary-50">
             <h4 className="text-md font-semibold text-primary-900 mb-3">Diabetes Details</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {[
-                { key: 'diabetes_symptoms', label: 'Diabetes Symptoms' },
-                { key: 'ketoacidosis_history', label: 'Ketoacidosis History' },
-                { key: 'autoimmune_disease', label: 'Autoimmune Disease' },
-                { key: 'obesity', label: 'Obesity' },
-                { key: 'family_history_diabetes', label: 'Family History Diabetes' },
-                { key: 'history_gdm', label: 'History GDM' },
-                { key: 'renal_impairment', label: 'Renal Impairment' },
-                { key: 'liver_disease', label: 'Liver Disease' },
-                { key: 'cardiovascular_disease', label: 'Cardiovascular Disease' },
-                { key: 'neuropathy_symptoms', label: 'Neuropathy Symptoms' },
-                { key: 'persistent_proteinuria', label: 'Persistent Proteinuria' },
-                { key: 'cardiovascular_risk_factors', label: 'CV Risk Factors' },
-                { key: 'hiv_positive', label: 'HIV Positive' }
-              ].map(({ key, label }) => (
+                'diabetes_symptoms',
+                'ketoacidosis_history',
+                'autoimmune_disease',
+                'obesity',
+                'family_history_diabetes',
+                'history_gdm',
+                'renal_impairment',
+                'liver_disease',
+                'cardiovascular_disease',
+                'neuropathy_symptoms',
+                'persistent_proteinuria',
+                'cardiovascular_risk_factors',
+                'hiv_positive'
+              ].map((key) => (
                 <label key={key} className="flex items-center space-x-2">
                   <input
                     type="checkbox"
-                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     checked={formData.medical_history[key]}
                     onChange={(e) => handleInputChange('medical_history', key, e.target.checked)}
                   />
-                  <span className="text-sm text-gray-700">{label}</span>
+                  <span className="text-sm text-gray-700 capitalize">
+                    {key.replace(/_/g, ' ')}
+                  </span>
                 </label>
               ))}
             </div>
 
-            {/* Diabetes Onset */}
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Diabetes Onset</label>
-              <select
-                className="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                value={formData.medical_history.diabetes_onset}
-                onChange={(e) => handleInputChange('medical_history', 'diabetes_onset', e.target.value)}
-              >
-                <option value="">Select Onset Type</option>
-                <option value="acute">Acute</option>
-                <option value="gradual">Gradual</option>
-              </select>
-            </div>
-
-            {/* Treatment Duration */}
-            <div className="mt-4 w-full md:w-64">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Treatment Duration (months)</label>
-              <input
-                type="number"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                value={formData.medical_history.treatment_duration ?? ''}
-                onChange={(e) => handleNumberChange('medical_history', 'treatment_duration', e.target.value)}
-                onKeyDown={preventInvalidNumber}
-                placeholder="6"
-              />
+            {/* Diabetes onset & treatment */}
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Diabetes Onset</label>
+                <select
+                  value={formData.medical_history.diabetes_onset}
+                  onChange={(e) => handleInputChange('medical_history', 'diabetes_onset', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="">Select Onset Type</option>
+                  <option value="acute">Acute</option>
+                  <option value="gradual">Gradual</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Treatment Duration (months)</label>
+                <input
+                  type="number"
+                  value={formData.medical_history.treatment_duration ?? ''}
+                  onChange={(e) => handleNumberChange('medical_history', 'treatment_duration', e.target.value)}
+                  onKeyDown={preventInvalidNumber}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="6"
+                />
+              </div>
             </div>
           </div>
         )}
-
-        {/* Emergency Symptoms */}
-        <div className="mt-6 p-4 border border-orange-200 rounded-lg bg-orange-50">
-          <h4 className="text-md font-semibold text-orange-900 mb-3">Emergency Symptoms</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {[
-              { key: 'abdominal_pain', label: 'Abdominal Pain' },
-              { key: 'nausea_vomiting', label: 'Nausea/Vomiting' },
-              { key: 'dehydration', label: 'Dehydration' },
-              { key: 'rapid_breathing', label: 'Rapid Breathing' },
-              { key: 'danger_signs', label: 'Danger Signs Present' }
-            ].map(({ key, label }) => (
-              <label key={key} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  className="rounded border-orange-300 text-orange-600 focus:ring-orange-500"
-                  checked={formData.medical_history[key]}
-                  onChange={(e) => handleInputChange('medical_history', key, e.target.checked)}
-                />
-                <span className="text-sm text-orange-800">{label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
       </FormSection>
 
       {/* Investigations */}
@@ -314,7 +333,6 @@ const PatientForm = ({ onSubmit, loading }) => {
             { field: 'fasting_glucose', label: 'Fasting Glucose (mmol/L)', placeholder: '5.6', step: '0.1' },
             { field: 'random_glucose', label: 'Random Glucose (mmol/L)', placeholder: '7.8', step: '0.1' },
             { field: 'blood_glucose', label: 'Blood Glucose (mmol/L)', placeholder: '6.5', step: '0.1' },
-            { field: 'egfr', label: 'eGFR (mL/min/1.73m²)', placeholder: '90' },
             { field: 'urine_protein', label: 'Urine Protein', placeholder: '0.0', step: '0.1' },
             { field: 'serum_creatinine', label: 'Serum Creatinine', placeholder: '0.8', step: '0.1' },
             { field: 'ldl_cholesterol', label: 'LDL Cholesterol', placeholder: '2.6', step: '0.1' }
@@ -324,22 +342,34 @@ const PatientForm = ({ onSubmit, loading }) => {
               <input
                 type="number"
                 step={step}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 value={formData.investigations[field] ?? ''}
                 onChange={(e) => handleNumberChange('investigations', field, e.target.value)}
                 onKeyDown={preventInvalidNumber}
                 placeholder={placeholder}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
           ))}
+
+          {/* Auto-calculated eGFR */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              eGFR (mL/min/1.73m²)
+            </label>
+            <input
+              type="number"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+              value={formData.investigations.egfr ?? ""}
+              readOnly
+            />
+          </div>
         </div>
 
-        {/* Ketonuria Checkbox */}
+        {/* Ketonuria */}
         <div className="mt-4">
           <label className="flex items-center space-x-2">
             <input
               type="checkbox"
-              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               checked={formData.investigations.ketonuria}
               onChange={(e) => handleInputChange('investigations', 'ketonuria', e.target.checked)}
             />
@@ -348,32 +378,29 @@ const PatientForm = ({ onSubmit, loading }) => {
         </div>
       </FormSection>
 
-      {/* Physical Examination */}
+      {/* Physical Exam */}
       <FormSection title="Physical Examination">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { field: 'systole', label: 'Systolic BP (mmHg) *', placeholder: '120', required: true },
-            { field: 'diastole', label: 'Diastolic BP (mmHg) *', placeholder: '80', required: true },
+            { field: 'systole', label: 'Systolic BP (mmHg) *', placeholder: '120' },
+            { field: 'diastole', label: 'Diastolic BP (mmHg) *', placeholder: '80' },
             { field: 'height', label: 'Height (cm)', placeholder: '170' },
             { field: 'weight', label: 'Weight (kg)', placeholder: '70' },
             { field: 'pulse', label: 'Pulse (bpm)', placeholder: '72' },
             { field: 'temperature', label: 'Temperature (°C)', placeholder: '37.0', step: '0.1' },
             { field: 'spO2', label: 'SpO2 (%)', placeholder: '98' },
             { field: 'pain_score', label: 'Pain Score (0-10)', placeholder: '0' }
-          ].map(({ field, label, placeholder, required, step }) => (
+          ].map(({ field, label, placeholder, step }) => (
             <div key={field}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
               <input
                 type="number"
                 step={step}
-                required={required}
-                min={field === 'pain_score' ? 0 : undefined}
-                max={field === 'pain_score' ? 10 : undefined}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 value={formData.physical_examination[field] ?? ''}
                 onChange={(e) => handleNumberChange('physical_examination', field, e.target.value)}
                 onKeyDown={preventInvalidNumber}
                 placeholder={placeholder}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
               />
             </div>
           ))}
@@ -398,29 +425,12 @@ const PatientForm = ({ onSubmit, loading }) => {
             <label key={field} className="flex items-center space-x-2">
               <input
                 type="checkbox"
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                 checked={formData.social_history[field]}
                 onChange={(e) => handleInputChange('social_history', field, e.target.checked)}
               />
-              <span className="text-sm text-gray-700">
-                {field === 'tobacco_use' ? 'Tobacco Use' : 'Alcohol Use'}
-              </span>
+              <span className="text-sm text-gray-700 capitalize">{field.replace('_', ' ')}</span>
             </label>
           ))}
-        </div>
-      </FormSection>
-
-      {/* Consultation */}
-      <FormSection title="Consultation">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Chief Complaint</label>
-          <textarea
-            rows="3"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            value={formData.consultation.chief_complaint}
-            onChange={(e) => handleInputChange('consultation', 'chief_complaint', e.target.value)}
-            placeholder="Describe the patient's main concerns..."
-          />
         </div>
       </FormSection>
 
@@ -428,23 +438,16 @@ const PatientForm = ({ onSubmit, loading }) => {
       <div className="flex justify-center pt-4">
         <button
           type="submit"
-          disabled={loading || !formData.physical_examination.systole || !formData.physical_examination.diastole}
-          className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-lg shadow-lg hover:from-primary-700 hover:to-primary-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          disabled={loading}
+          className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-lg shadow-lg hover:from-primary-700 hover:to-primary-800 disabled:opacity-50 transition-all duration-200"
         >
-          {loading ? (
-            <span className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-              Evaluating...
-            </span>
-          ) : (
-            'Get Clinical Recommendations'
-          )}
+          {loading ? 'Evaluating...' : 'Get Clinical Recommendations'}
         </button>
       </div>
 
-      <div className="text-xs text-gray-500 text-center">
+      <p className="text-xs text-gray-500 text-center">
         * Required fields: Systolic and Diastolic Blood Pressure
-      </div>
+      </p>
     </form>
   );
 };

@@ -34,13 +34,25 @@ function App() {
     setLoading(true);
     try {
       const response = await evaluatePatient(formData);
+      console.log('Full API Response:', response);
+      console.log('Response keys:', Object.keys(response));
+      console.log('Clinical decisions from response:', response.clinical_decisions);
+      console.log('Clinical decisions type:', typeof response.clinical_decisions);
+      console.log('Is array?', Array.isArray(response.clinical_decisions));
+      
       setPatientData(formData);
-      setClinicalDecisions(response.clinical_decisions || []);
+      
+      // Handle different possible response structures
+      const decisions = response.clinical_decisions || response.decisions || [];
+      console.log('Setting clinical decisions:', decisions);
+      console.log('Decisions length:', decisions.length);
+      
+      setClinicalDecisions(decisions);
       setActiveTab('results');
       
       // Log successful evaluation
       console.log('Evaluation completed:', {
-        decisions: response.clinical_decisions?.length || 0,
+        decisions: decisions.length,
         executionTime: response.execution_time_ms,
         success: response.success
       });

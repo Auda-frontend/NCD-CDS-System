@@ -22,7 +22,7 @@ class PatientDemographics(BaseModel):
     upid: Optional[str] = None
     full_name: str
     gender: Gender
-    age: Optional[int] = Field(None, ge=0, le=120)
+    age: int = Field(None, ge=0, le=120)
     province: Optional[str] = None
     district: Optional[str] = None
     sector: Optional[str] = None
@@ -87,7 +87,7 @@ class PhysicalExamination(BaseModel):
     diastole: float = Field(..., ge=0, le=200, description="Diastolic blood pressure in mmHg")
     bp_status: Optional[str] = None
     height: Optional[float] = Field(None, ge=0, le=300, description="Height in centimeters")
-    weight: Optional[float] = Field(None, ge=0, le=500, description="Weight in kilograms")
+    weight: float = Field(None, ge=0, le=500, description="Weight in kilograms")
     bmi: Optional[float] = Field(None, ge=0, le=100, description="Body Mass Index")
     bmi_status: Optional[str] = None
     pulse: Optional[float] = Field(None, ge=0, le=300, description="Pulse rate in BPM")
@@ -103,7 +103,7 @@ class Investigations(BaseModel):
     egfr: Optional[float] = Field(None, ge=0, le=200, description="Estimated glomerular filtration rate")
     ketonuria: Optional[bool] = None
     urine_protein: Optional[float] = Field(None, ge=0, description="Urine protein level")
-    serum_creatinine: Optional[float] = Field(None, ge=0, description="Serum creatinine level")
+    serum_creatinine: float = Field(None, ge=0, description="Serum creatinine level")
     ldl_cholesterol: Optional[float] = Field(None, ge=0, description="LDL cholesterol level")
     additional_tests: List[str] = []
 
