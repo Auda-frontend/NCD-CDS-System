@@ -1,6 +1,7 @@
 // Created by: Clinical CDS System
 // Purpose: Hypertension diagnosis and treatment rules based on Rwanda National Guidelines 2023
 // Source: Rwanda Standard Treatment Guidelines, Section II: Cardiology
+// Reference doc: Rwanda HTN Guidelines (2023). See uploaded file. :contentReference[oaicite:1]{index=1}
 
 package com.rwanda.health.cds.rules
 
@@ -19,7 +20,7 @@ rule "Grade 3 Hypertension Classification"
     salience 100
     when
         $patient: PatientData(
-            physicalExamination.systole >= 180 || 
+            physicalExamination.systole >= 180 ||
             physicalExamination.diastole >= 110
         )
     then
@@ -39,7 +40,7 @@ rule "Grade 2 Hypertension Classification"
     salience 90
     when
         $patient: PatientData(
-            (physicalExamination.systole >= 160 && physicalExamination.systole < 180) || 
+            (physicalExamination.systole >= 160 && physicalExamination.systole < 180) ||
             (physicalExamination.diastole >= 100 && physicalExamination.diastole < 110)
         )
         not ClinicalDecision(diagnosis == "Severe Hypertension")  // Don't fire if Grade 3 exists
@@ -60,7 +61,7 @@ rule "Grade 1 Hypertension Classification"
     salience 80
     when
         $patient: PatientData(
-            (physicalExamination.systole >= 140 && physicalExamination.systole <= 159) || 
+            (physicalExamination.systole >= 140 && physicalExamination.systole <= 159) ||
             (physicalExamination.diastole >= 90 && physicalExamination.diastole <= 99)
         )
         not ClinicalDecision(diagnosis == "Severe Hypertension")  // Don't fire if higher stages exist
@@ -80,7 +81,7 @@ rule "Isolated Systolic Hypertension Classification"
     salience 75
     when
         $patient: PatientData(
-            physicalExamination.systole >= 140 && 
+            physicalExamination.systole >= 140 &&
             physicalExamination.diastole < 90
         )
         not ClinicalDecision(diagnosis == "Severe Hypertension")  // Don't fire if higher stages exist
@@ -101,7 +102,7 @@ rule "Isolated Diastolic Hypertension Classification"
     salience 75
     when
         $patient: PatientData(
-            physicalExamination.systole < 140 && 
+            physicalExamination.systole < 140 &&
             physicalExamination.diastole >= 90
         )
         not ClinicalDecision(diagnosis == "Severe Hypertension")  // Don't fire if higher stages exist
@@ -122,7 +123,7 @@ rule "High Normal Blood Pressure Classification"
     salience 60
     when
         $patient: PatientData(
-            (physicalExamination.systole >= 130 && physicalExamination.systole <= 139) || 
+            (physicalExamination.systole >= 130 && physicalExamination.systole <= 139) ||
             (physicalExamination.diastole >= 85 && physicalExamination.diastole <= 89)
         )
         not ClinicalDecision()  // Don't fire if any hypertension diagnosis exists
@@ -142,7 +143,7 @@ rule "Normal Blood Pressure Classification"
     salience 50
     when
         $patient: PatientData(
-            physicalExamination.systole < 130 && 
+            physicalExamination.systole < 130 &&
             physicalExamination.diastole < 85
         )
         not ClinicalDecision()  // Don't fire if any diagnosis exists
@@ -158,51 +159,113 @@ end
 
 // =============================================
 // INITIAL TREATMENT RECOMMENDATIONS (Figure 9)
+// Notes:
+//  - Where we list multiple alternatives that are mutually exclusive, we use "OR" (choose one).
+//  - Where the regimen indicates combination therapy, we use "AND" between agents to indicate they are given together.
+//  - The HC/MHC threshold for starting dual therapy is explicitly implemented: >150/95 mmHg -> start dual therapy.
 // =============================================
 
-// Rule 8: Grade 1 Hypertension - Monotherapy
+// Rule 8: Grade 1 Hypertension - Monotherapy (choose ONE of the following)
 rule "Grade 1 Hypertension Initial Therapy"
     when
         $patient: PatientData(
-            physicalExamination.systole >= 140 && physicalExamination.systole <= 159 || 
-            physicalExamination.diastole >= 90 && physicalExamination.diastole <= 99
+            (physicalExamination.systole >= 140 && physicalExamination.systole <= 159) ||
+            (physicalExamination.diastole >= 90 && physicalExamination.diastole <= 99)
         )
         $decision: ClinicalDecision(diagnosis == "Hypertension", stage == "Grade 1") from $patient.getDecisions()
     then
-        // First-line monotherapy options
-        $decision.addMedication("Amiodipine 5mg once daily (Preferred CCB)");
-        $decision.addMedication("Hydrochlorothiazide 12.5mg once daily");
-        $decision.addMedication("Lisinopril 2.5mg once daily (if no contraindications)");
-        $decision.addMedication("Losartan 25mg once daily (if ACEI not tolerated)");
-        
+        // Clarified: these are alternative MONOTHERAPY options. Use one (OR) depending on comorbidity/contraindication.
+        $decision.addMedication("Amlodipine 5-10 mg once daily  -- CCB (Preferred).  (MONOTHERAPY option)");
+        $decision.addMedication("Hydrochlorothiazide 12.5-25 mg once daily  -- Thiazide diuretic (MONOTHERAPY option)");
+        $decision.addMedication("Lisinopril 2.5-40 mg once daily  -- ACE inhibitor (MONOTHERAPY option; use if no contraindication)");
+        $decision.addMedication("Losartan 25-50 mg once daily  -- ARB (MONOTHERAPY option; if ACEI not tolerated)");
+
+        // Tests to request
         $decision.addTest("ECG");
         $decision.addTest("Urine Albumin-Creatinine ratio");
         $decision.addTest("Serum electrolytes and creatinine");
         $decision.addTest("Lipid profile");
         $decision.addTest("Fasting blood glucose/HbA1c");
-        
+
+        // Add explicit patient advice clarifying OR use
+        String currentAdvice = $decision.getPatientAdvice();
+        String medAdvice = "Initial pharmacological therapy (MONOTHERAPY) — choose ONE of: Amlodipine OR Thiazide OR ACEI (Lisinopril) OR ARB (Losartan) depending on comorbidity/contraindication.";
+        if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
+            $decision.setPatientAdvice(currentAdvice + " " + medAdvice);
+        } else {
+            $decision.setPatientAdvice(medAdvice);
+        }
+
         System.out.println("Applied rule: Grade 1 Hypertension Initial Therapy");
 end
 
-// Rule 9: Grade 2 Hypertension - Dual Therapy
+// New Rule: Primary care (HC/MHC) threshold — explicit dual therapy initiation at >150/95
+rule "Primary Care Threshold - Start Dual Therapy if BP >150/95 at HC/MHC"
+    salience 89
+    when
+        // This rule implements the HC/MHC logic from the guideline:
+        // "BP: <150/95 mmHg - initial therapy (monotherapy). BP: >150/95 mmHg - Start Dual therapy. Recheck after 4 weeks."
+        $patient: PatientData(
+            physicalExamination.systole > 150 ||
+            physicalExamination.diastole > 95
+        )
+        // ensure we don't override Grade 3 emergency classification
+        not ClinicalDecision(diagnosis == "Severe Hypertension")
+    then
+        ClinicalDecision decision = new ClinicalDecision();
+        decision.setDiagnosis("Hypertension");
+        decision.setStage("Primary care - Indication for Dual Therapy (HC/MHC)");
+        // Clear instruction about dual therapy initiation and recheck timing
+        decision.setPatientAdvice("BP >150/95 mmHg at primary care level: initiate DUAL THERAPY now (see combinations). Recheck after 4 weeks and titrate as needed.");
+        decision.setConfidenceLevel("HIGH");
+
+        // Dual therapy choices (explicit AND between combination partners, OR between different combination choices)
+        // Show clearly: (ACEI or ARB) + (CCB)  OR  (ACEI or ARB) + (Diuretic)
+        decision.addMedication("(ACEI OR ARB) + CCB  (Example: Lisinopril OR Losartan  PLUS  Amlodipine)  -- DUAL THERAPY");
+        decision.addMedication("(ACEI OR ARB) + Diuretic  (Example: Lisinopril OR Losartan  PLUS  Hydrochlorothiazide/Indapamide)  -- DUAL THERAPY");
+        decision.addMedication("Single Pill Combination (SPC) preferred when available (reduces pill burden)");
+
+        // Tests
+        decision.addTest("ECG - urgent");
+        decision.addTest("Serum electrolytes and creatinine - baseline and follow-up");
+        decision.addTest("Urine ACR");
+
+        // Mark that this originated from HC/MHC guidance (informational)
+        decision.setReferralReason("Start dual therapy at primary care when BP >150/95 mmHg; recheck after 4 weeks");
+        $patient.addDecision(decision);
+        System.out.println("Applied rule: Primary Care Threshold - Start Dual Therapy >150/95");
+end
+
+// Rule 9: Grade 2 Hypertension - Dual Therapy (Grade 2 or higher severity)
 rule "Grade 2 Hypertension Dual Therapy"
+    salience 88
     when
         $patient: PatientData(
-            physicalExamination.systole >= 160 || 
+            physicalExamination.systole >= 160 ||
             physicalExamination.diastole >= 100
         )
         $decision: ClinicalDecision(diagnosis == "Hypertension", stage == "Grade 2") from $patient.getDecisions()
     then
         // Dual combination therapy as per guidelines
-        $decision.addMedication("ACEI/ARB + CCB combination");
-        $decision.addMedication("OR ACEI/ARB + Diuretic combination");
+        // Clarified wording: combinations use AND between agents; alternatives are separated with OR.
+        $decision.addMedication("(ACEI OR ARB) + CCB  -- DUAL THERAPY (ACEI/ARB AND CCB together)");
+        $decision.addMedication("OR (ACEI OR ARB) + Diuretic  -- DUAL THERAPY (ACEI/ARB AND Diuretic together)");
         $decision.addMedication("Single Pill Combination preferred when available");
-        
+
         $decision.addTest("ECG - urgent");
         $decision.addTest("Echocardiogram if available");
         $decision.addTest("Complete renal function tests");
         $decision.addTest("Fundoscopy if indicated");
-        
+
+        // Patient advice clarifying AND/OR structure
+        String cur = $decision.getPatientAdvice();
+        String dualAdvice = "For dual therapy give two agents together (AND). Example combos: (ACEI OR ARB) AND CCB  OR  (ACEI OR ARB) AND Diuretic. Avoid ACEI + ARB together.";
+        if(cur != null && !cur.trim().isEmpty()) {
+            $decision.setPatientAdvice(cur + " " + dualAdvice);
+        } else {
+            $decision.setPatientAdvice(dualAdvice);
+        }
+
         System.out.println("Applied rule: Grade 2 Hypertension Dual Therapy");
 end
 
@@ -210,7 +273,7 @@ end
 rule "Grade 3 Hypertension Emergency Therapy"
     when
         $patient: PatientData(
-            physicalExamination.systole >= 180 || 
+            physicalExamination.systole >= 180 ||
             physicalExamination.diastole >= 110
         )
         $decision: ClinicalDecision(diagnosis == "Severe Hypertension") from $patient.getDecisions()
@@ -219,18 +282,19 @@ rule "Grade 3 Hypertension Emergency Therapy"
         $decision.addMedication("Labetalol IV - first line emergency");
         $decision.addMedication("Nicardipine IV - alternative");
         $decision.addMedication("Nitroprusside IV - for specific emergencies");
-        
+
         $decision.addTest("ECG - immediate");
         $decision.addTest("Cardiac enzymes - STAT");
         $decision.addTest("Renal function tests - STAT");
         $decision.addTest("Fundoscopy - urgent");
         $decision.addTest("CXR if pulmonary edema suspected");
-        
+
         System.out.println("Applied rule: Grade 3 Hypertension Emergency Therapy");
 end
 
 // =============================================
 // COMORBIDITY-BASED TREATMENT RECOMMENDATIONS
+// (no change except clarifying OR usage in messages)
 // =============================================
 
 // Rule 11: Hypertension with Diabetes
@@ -239,15 +303,15 @@ rule "Hypertension with Diabetes Comorbidity"
         $patient: PatientData(medicalHistory.diabetes == true)
         $decision: ClinicalDecision(diagnosis == "Hypertension") from $patient.getDecisions()
     then
-        // Preferred in diabetes: CCB or Thiazide
-        $decision.addMedication("CCB (Amiodipine) preferred in diabetes");
-        $decision.addMedication("OR Thiazide diuretic");
+        // Preferred in diabetes: CCB or Thiazide (these are alternatives => OR)
+        $decision.addMedication("CCB (Amlodipine) preferred in diabetes (OR)");
+        $decision.addMedication("OR Thiazide diuretic (Hydrochlorothiazide/Indapamide)");
         $decision.addMedication("Target BP: 130/80 mmHg or lower if tolerated");
-        
+
         $decision.addTest("HbA1c - quarterly monitoring");
         $decision.addTest("Urine ACR - annual");
         $decision.addTest("Foot examination");
-        
+
         String currentAdvice = $decision.getPatientAdvice();
         String diabetesAdvice = "Strict blood pressure and glucose control needed. Target BP <130/80 mmHg. Regular eye and foot examinations.";
         if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
@@ -255,7 +319,7 @@ rule "Hypertension with Diabetes Comorbidity"
         } else {
             $decision.setPatientAdvice(diabetesAdvice);
         }
-        
+
         System.out.println("Applied rule: Hypertension with Diabetes Comorbidity");
 end
 
@@ -265,14 +329,14 @@ rule "Hypertension with CKD Comorbidity"
         $patient: PatientData(medicalHistory.chronicKidneyDisease == true)
         $decision: ClinicalDecision(diagnosis == "Hypertension") from $patient.getDecisions()
     then
-        // ARB or ACEI preferred in CKD (except if K+ >5.5 or pregnant)
-        $decision.addMedication("ARB or ACEI preferred (monitor potassium)");
+        // ARB or ACEI preferred in CKD (choose ONE unless contraindicated) -> OR
+        $decision.addMedication("ARB or ACEI preferred (monitor potassium)  -- choose ONE (OR), unless contraindicated");
         $decision.addMedication("Target BP: <140/90 to 130/80 if tolerated");
-        
+
         $decision.addTest("Serum potassium regularly");
         $decision.addTest("eGFR monitoring");
         $decision.addTest("Urine ACR");
-        
+
         String currentAdvice = $decision.getPatientAdvice();
         String ckdAdvice = "ACEI/ARB preferred for renal protection. Monitor potassium levels regularly. Fluid and salt restriction may be needed.";
         if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
@@ -280,7 +344,7 @@ rule "Hypertension with CKD Comorbidity"
         } else {
             $decision.setPatientAdvice(ckdAdvice);
         }
-        
+
         System.out.println("Applied rule: Hypertension with CKD Comorbidity");
 end
 
@@ -293,10 +357,10 @@ rule "Hypertension with CAD Comorbidity"
         // Beta-blockers indicated for CAD
         $decision.addMedication("Consider beta-blockers for CAD indication");
         $decision.addMedication("Target BP: 130/80 mmHg or lower if tolerated");
-        
+
         $decision.addTest("Cardiac enzymes if symptomatic");
         $decision.addTest("Stress ECG if indicated");
-        
+
         String currentAdvice = $decision.getPatientAdvice();
         String cadAdvice = "Beta-blockers recommended for coronary artery disease. Regular cardiac follow-up needed.";
         if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
@@ -304,7 +368,7 @@ rule "Hypertension with CAD Comorbidity"
         } else {
             $decision.setPatientAdvice(cadAdvice);
         }
-        
+
         System.out.println("Applied rule: Hypertension with CAD Comorbidity");
 end
 
@@ -319,7 +383,7 @@ rule "ACEI ARB Contraindication Hyperkalemia"
         $decision: ClinicalDecision() from $patient.getDecisions()
     then
         String currentAdvice = $decision.getPatientAdvice();
-        String hyperkalemiaAdvice = "ACEI/ARB contraindicated due to hyperkalemia. Consider CCB or thiazide instead.";
+        String hyperkalemiaAdvice = "ACEI/ARB contraindicated due to hyperkalemia. Consider CCB or thiazide instead (OR).";
         if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
             $decision.setPatientAdvice(currentAdvice + " " + hyperkalemiaAdvice);
         } else {
@@ -334,12 +398,12 @@ rule "Hypertension in Pregnancy"
         $patient: PatientData(demographics.gender == "Female", medicalHistory.pregnant == true)
         $decision: ClinicalDecision(diagnosis == "Hypertension") from $patient.getDecisions()
     then
-        // First-line in pregnancy: Labetalol and Methyldopa
+        // First-line in pregnancy: Labetalol and Methyldopa (these are preferred options; can be used accordingly)
         $decision.addMedication("Labetalol - first line");
         $decision.addMedication("Methyldopa - first line");
         $decision.addMedication("Nifedipine ER - alternative");
         $decision.addMedication("Avoid ACEI/ARB - contraindicated in pregnancy");
-        
+
         String currentAdvice = $decision.getPatientAdvice();
         String pregnancyAdvice = "OBSTETRICAL EMERGENCY: Urgent obstetric review needed. Target BP <140/90 mmHg. Labetalol or Methyldopa recommended.";
         if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
@@ -347,10 +411,10 @@ rule "Hypertension in Pregnancy"
         } else {
             $decision.setPatientAdvice(pregnancyAdvice);
         }
-        
+
         $decision.setNeedsReferral(true);
         $decision.setReferralReason("Hypertension in pregnancy - requires obstetric management");
-        
+
         System.out.println("Applied rule: Hypertension in Pregnancy");
 end
 
@@ -362,7 +426,7 @@ end
 rule "Hypertensive Emergency Detection"
     when
         $patient: PatientData(
-            physicalExamination.systole >= 180 || 
+            physicalExamination.systole >= 180 ||
             physicalExamination.diastole >= 120
         )
         $decision: ClinicalDecision(diagnosis == "Severe Hypertension") from $patient.getDecisions()
@@ -374,15 +438,15 @@ rule "Hypertensive Emergency Detection"
         } else {
             $decision.setPatientAdvice(emergencyAdvice);
         }
-        
+
         $decision.setNeedsReferral(true);
         $decision.setReferralReason("Hypertensive emergency - requires hospital admission");
-        
+
         $decision.addTest("ECG - immediate");
         $decision.addTest("Cardiac enzymes");
         $decision.addTest("Renal function tests");
         $decision.addTest("Fundoscopy");
-        
+
         System.out.println("Applied rule: Hypertensive Emergency Detection");
 end
 
@@ -394,12 +458,12 @@ rule "Lifestyle Modifications All Hypertension"
     then
         String currentAdvice = $decision.getPatientAdvice();
         String lifestyleAdvice = "Lifestyle modifications: Smoking cessation, DASH diet, 150 min/week moderate activity, weight management, salt restriction.";
-        
+
         if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
             $decision.setPatientAdvice(currentAdvice + " " + lifestyleAdvice);
         } else {
             $decision.setPatientAdvice(lifestyleAdvice);
         }
-        
+
         System.out.println("Applied rule: Lifestyle Modifications All Hypertension");
 end
