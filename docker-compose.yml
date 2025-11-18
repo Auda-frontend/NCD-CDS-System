@@ -6,15 +6,25 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "8005:8000"
+      - "8005:8000" # Accessible at localhost:8005
     environment:
       - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - app-network
 
   frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
     ports:
-      - "80:80"
+      - "8081:80" # Accessible at localhost:8081
     depends_on:
       - backend
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
