@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "8005:8000"
     environment:
       - PYTHONUNBUFFERED=1
 
@@ -18,5 +18,3 @@ services:
       - "80:80"
     depends_on:
       - backend
-
-
