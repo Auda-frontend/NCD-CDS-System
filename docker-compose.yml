@@ -1,6 +1,23 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: clinical_cds
+      POSTGRES_USER: cds_user
+      POSTGRES_PASSWORD: cds_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -8,7 +25,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - PYTHONUNBUFFERED=1
+      PYTHONUNBUFFERED: "1"
+      DATABASE_URL: ${BACKEND_DATABASE_URL:-postgresql://cds_user:cds_password@postgres:5432/clinical_cds}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
     build:
@@ -19,4 +40,5 @@ services:
     depends_on:
       - backend
 
-
+volumes:
+  postgres_data:
