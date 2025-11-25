@@ -110,10 +110,25 @@ const PatientForm = ({ onSubmit, loading }) => {
   }, []);
 
   const handleNumberChange = useCallback((section, field, value) => {
-    const numValue = value === '' ? null : Number(value);
-    if (value === '' || !isNaN(numValue)) {
-      handleInputChange(section, field, numValue);
+    // If the input is cleared, set null
+    if (value === '') {
+      handleInputChange(section, field, null);
+      return;
     }
+
+    const numValue = Number(value);
+    if (isNaN(numValue)) return;
+
+    let finalValue = numValue;
+
+    // Enforce integer 0-10 for pain_score (prevents arrow/step from exceeding 10)
+    if (section === 'physical_examination' && field === 'pain_score') {
+      if (finalValue > 10) finalValue = 10;
+      if (finalValue < 0) finalValue = 0;
+      finalValue = Math.round(finalValue);
+    }
+
+    handleInputChange(section, field, finalValue);
   }, [handleInputChange]);
 
   const handleSubmit = (e) => {
@@ -334,8 +349,8 @@ const PatientForm = ({ onSubmit, loading }) => {
             { field: 'random_glucose', label: 'Random Glucose (mmol/L)', placeholder: '7.8', step: '0.1' },
             { field: 'blood_glucose', label: 'Blood Glucose (mmol/L)', placeholder: '6.5', step: '0.1' },
             { field: 'urine_protein', label: 'Urine Protein', placeholder: '0.0', step: '0.1' },
-            { field: 'serum_creatinine', label: 'Serum Creatinine', placeholder: '0.8', step: '0.1' },
-            { field: 'ldl_cholesterol', label: 'LDL Cholesterol', placeholder: '2.6', step: '0.1' }
+            { field: 'serum_creatinine', label: 'Serum Creatinine(mmol/L)', placeholder: '0.8', step: '0.1' },
+            { field: 'ldl_cholesterol', label: 'LDL Cholesterol(mmol/L)', placeholder: '2.6', step: '0.1' }
           ].map(({ field, label, placeholder, step }) => (
             <div key={field}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -389,13 +404,15 @@ const PatientForm = ({ onSubmit, loading }) => {
             { field: 'pulse', label: 'Pulse (bpm)', placeholder: '72' },
             { field: 'temperature', label: 'Temperature (°C)', placeholder: '37.0', step: '0.1' },
             { field: 'spO2', label: 'SpO2 (%)', placeholder: '98' },
-            { field: 'pain_score', label: 'Pain Score (0-10)', placeholder: '0' }
-          ].map(({ field, label, placeholder, step }) => (
+            { field: 'pain_score', label: 'Pain Score (0-10)', placeholder: '0', step: '1', min: 0, max: 10 }
+          ].map(({ field, label, placeholder, step, min, max }) => (
             <div key={field}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
               <input
                 type="number"
                 step={step}
+                min={min}
+                max={max}
                 value={formData.physical_examination[field] ?? ''}
                 onChange={(e) => handleNumberChange('physical_examination', field, e.target.value)}
                 onKeyDown={preventInvalidNumber}
