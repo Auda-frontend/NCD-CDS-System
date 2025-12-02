@@ -3,13 +3,14 @@ version: "3.9"
 services:
   postgres:
     image: postgres:15
+    container_name: cds_postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
       POSTGRES_DB: clinical_cds
-      POSTGRES_USER: cds_user
-      POSTGRES_PASSWORD: cds_password
+      POSTGRES_USER: auda
+      POSTGRES_PASSWORD: N1saw2Auda
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,15 +19,26 @@ services:
       timeout: 5s
       retries: 5
 
+  adminer:
+    image: adminer
+    container_name: cds_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    container_name: cds_backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       PYTHONUNBUFFERED: "1"
-      DATABASE_URL: ${BACKEND_DATABASE_URL:-postgresql://cds_user:cds_password@postgres:5432/clinical_cds}
+      DATABASE_URL: postgresql+asyncpg://auda:N1saw2Auda@postgres:5432/clinical_cds
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,10 +47,13 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    container_name: cds_frontend
+    restart: unless-stopped
     ports:
-      - "80:80"
+    - "80:80"
     depends_on:
-      - backend
+    - backend
+
 
 volumes:
   postgres_data:
