@@ -25,6 +25,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend application code
 COPY backend/app ./app
+COPY backend/database ./database
+
+# Copy alembic configuration and migration scripts so alembic CLI has its config inside the image
+COPY backend/alembic.ini ./alembic.ini
+COPY backend/alembic ./alembic
 
 # Copy built Drools JAR into expected location
 RUN mkdir -p ./drools-engine/target

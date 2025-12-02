@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import cds_routes
+from .routes import patient as patient_routes
 
 # Create FastAPI application
 app = FastAPI(
@@ -22,6 +23,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(cds_routes.router)
+app.include_router(patient_routes.router)
 
 @app.get("/")
 async def root():
