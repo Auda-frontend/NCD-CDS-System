@@ -8,5 +8,8 @@ Base = declarative_base()
 from .patient import Patient
 from .visit import Visit
 from .appointment import Appointment
-from .test_result import TestResult
-from .prescription import Prescription
+from .test_result import TestResult, TestStatus
+from .prescription import Prescription, PrescriptionStatus, PrescriptionSource
+from .appointment import Appointment, AppointmentStatus
+from .cds_recommendation import CDSRecommendation
+from .cds_recommendation import CDSRecommendation

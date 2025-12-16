@@ -15,6 +15,14 @@ class Visit(Base):
     visit_date = Column(DateTime(timezone=True), server_default=func.now())
     clinician = Column(String, nullable=True)
     reason = Column(String, nullable=True)
+    chief_complaint = Column(String, nullable=True)
+    complaints = Column(Text, nullable=True)
+    symptoms = Column(JSON, nullable=True)  # list/dict of symptoms captured
+    consultation = Column(JSON, nullable=True)  # matches patient_models.Consultation
+    medical_history = Column(JSON, nullable=True)  # matches patient_models.MedicalHistory (includes diabetes-specific fields)
+    social_history = Column(JSON, nullable=True)  # matches patient_models.SocialHistory
+    physical_examination = Column(JSON, nullable=True)  # matches patient_models.PhysicalExamination
+    investigations = Column(JSON, nullable=True)  # matches patient_models.Investigations (diabetes labs: hba1c, glucose, egfr, etc.)
     notes = Column(Text, nullable=True)
 
     # vitals snapshot
@@ -23,6 +31,10 @@ class Visit(Base):
     weight_kg = Column(Float, nullable=True)
     height_cm = Column(Float, nullable=True)
     bmi = Column(Float, nullable=True)
+    pulse = Column(Float, nullable=True)
+    temperature = Column(Float, nullable=True)
+    spo2 = Column(Float, nullable=True)
+    pain_score = Column(Integer, nullable=True)
 
     # Drools output
     clinical_decisions = Column(JSON, nullable=True)
@@ -33,3 +45,11 @@ class Visit(Base):
     patient = relationship("Patient", back_populates="visits")
     tests = relationship("TestResult", back_populates="visit", cascade="all, delete-orphan")
     prescriptions = relationship("Prescription", back_populates="visit", cascade="all, delete-orphan")
+    cds_recommendation = relationship(
+        "CDSRecommendation",
+        back_populates="visit",
+        uselist=False,
+        primaryjoin="Visit.id==CDSRecommendation.visit_id",
+        foreign_keys="CDSRecommendation.visit_id",
+    )
+    appointments = relationship("Appointment", back_populates="visit", cascade="all, delete-orphan")

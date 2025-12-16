@@ -4,7 +4,7 @@ import os
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+asyncpg://auda:N1saw2Auda@postgres:5432/clinical_cds"
+    "postgresql+asyncpg://auda:N1saw2Auda@localhost:5432/clinical_cds"
 )
 
 engine = create_async_engine(

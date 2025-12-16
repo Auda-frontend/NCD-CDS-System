@@ -128,6 +128,7 @@ class PatientData(BaseModel):
 
 class CDSRequest(BaseModel):
     patient_data: PatientData
+    visit_id: str  # UUID of the visit for linking recommendations
 
 class CDSResponse(BaseModel):
     success: bool

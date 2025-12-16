@@ -5,6 +5,10 @@ from sqlalchemy import text
 from .routes import cds_routes
 from .routes import patient as patient_routes
 from .routes import visit as visit_routes
+from .routes import test_result as test_result_routes
+from .routes import prescription as prescription_routes
+from .routes import appointment as appointment_routes
+from .routes import recommendation as recommendation_routes
 from database.session import get_db, DATABASE_URL
 
 # Create FastAPI application
@@ -29,6 +33,10 @@ app.add_middleware(
 app.include_router(cds_routes.router)
 app.include_router(patient_routes.router, prefix="/patients", tags=["patients"])
 app.include_router(visit_routes.router, prefix="/visits", tags=["visits"])
+app.include_router(test_result_routes.router, prefix="/test-results", tags=["test_results"])
+app.include_router(prescription_routes.router, prefix="/prescriptions", tags=["prescriptions"])
+app.include_router(appointment_routes.router, prefix="/appointments", tags=["appointments"])
+app.include_router(recommendation_routes.router, prefix="/cds-recommendations", tags=["cds_recommendations"])
 
 @app.get("/")
 async def root():
