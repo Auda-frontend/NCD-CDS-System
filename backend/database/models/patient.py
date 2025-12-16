@@ -21,3 +21,4 @@ class Patient(Base):
 
     visits = relationship("Visit", back_populates="patient", cascade="all, delete-orphan")
     appointments = relationship("Appointment", back_populates="patient", cascade="all, delete-orphan")
+    recommendations = relationship("CDSRecommendation", back_populates="patient", cascade="all, delete-orphan")

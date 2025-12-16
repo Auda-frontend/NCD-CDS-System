@@ -43,14 +43,23 @@ async def create_visit(db: AsyncSession, visit_data):
     
     # Only map known DB columns
     allowed = {
-        "patient_id", "visit_date", "clinician", "reason", "notes",
+        "patient_id", "visit_date", "clinician", "reason", "chief_complaint",
+        "complaints", "symptoms", "consultation", "medical_history",
+        "social_history", "physical_examination", "investigations", "notes",
         "systole", "diastole", "weight_kg", "height_cm", "bmi",
+        "pulse", "temperature", "spo2", "pain_score",
         "clinical_decisions"
     }
     obj_kwargs = {k: v for k, v in data.items() if k in allowed and v is not None}
     
     logger.info(f"Creating visit with data: {obj_kwargs}")
     
+    # Auto-calc BMI if height/weight provided and bmi missing
+    if not obj_kwargs.get("bmi") and obj_kwargs.get("height_cm") and obj_kwargs.get("weight_kg"):
+        h_m = obj_kwargs["height_cm"] / 100.0
+        if h_m > 0:
+            obj_kwargs["bmi"] = round(obj_kwargs["weight_kg"] / (h_m * h_m), 1)
+
     new_visit = Visit(**obj_kwargs)
     db.add(new_visit)
     
@@ -126,8 +135,11 @@ async def update_visit(db: AsyncSession, visit_id: str, visit_data):
     
     # Filter only allowed columns (exclude patient_id from updates)
     allowed = {
-        "visit_date", "clinician", "reason", "notes",
+        "visit_date", "clinician", "reason", "chief_complaint",
+        "complaints", "symptoms", "consultation", "medical_history",
+        "social_history", "physical_examination", "investigations", "notes",
         "systole", "diastole", "weight_kg", "height_cm", "bmi",
+        "pulse", "temperature", "spo2", "pain_score",
         "clinical_decisions"
     }
     update_values = {k: v for k, v in values.items() if k in allowed}
@@ -151,8 +163,20 @@ async def update_visit(db: AsyncSession, visit_id: str, visit_data):
         
         if result.rowcount == 0:
             return None
-        
-        return await get_visit(db, visit_id)
+        updated = await get_visit(db, visit_id)
+
+        # If BMI missing but height/weight present in updated values, compute
+        if updated and updated.height_cm and updated.weight_kg and not updated.bmi:
+            h_m = updated.height_cm / 100.0
+            if h_m > 0:
+                updated.bmi = round(updated.weight_kg / (h_m * h_m), 1)
+                await db.execute(
+                    update(Visit)
+                    .where(Visit.id == visit_id)
+                    .values(bmi=updated.bmi)
+                )
+                await db.commit()
+        return updated
     except Exception as e:
         logger.error(f"Error updating visit {visit_id}: {e}")
         await db.rollback()

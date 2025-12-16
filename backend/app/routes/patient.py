@@ -7,6 +7,7 @@ from ..schemas.visit import VisitOut
 from ..crud import patient as patient_crud
 from ..crud import visit as visit_crud
 from database.session import get_db
+from datetime import date
 
 router = APIRouter(
     tags=["Patients"]
@@ -27,11 +28,36 @@ async def read_patients(skip: int = 0, limit: int = 100, db: AsyncSession = Depe
 
 # Get single patient
 @router.get("/{patient_id}", response_model=PatientOut)
-async def read_patient(patient_id: str, db: AsyncSession = Depends(get_db)):
+async def get_patient(patient_id: str, db: AsyncSession = Depends(get_db)):
+    """Get a single patient by ID"""
     patient = await patient_crud.get_patient(db, patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     return patient
+
+# Get patient demographics
+@router.get("/{patient_id}/demographics")
+async def get_patient_demographics(patient_id: str, db: AsyncSession = Depends(get_db)):
+    """Get patient demographics for auto-filling visit forms"""
+    patient = await patient_crud.get_patient(db, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    # Calculate age
+    age = None
+    if patient.date_of_birth:
+        today = date.today()
+        age = today.year - patient.date_of_birth.year - ((today.month, today.day) < (patient.date_of_birth.month, patient.date_of_birth.day))
+    
+    # Only return fields that exist in the Patient model
+    return {
+        "patient_id": patient.patient_id,
+        "full_name": patient.full_name,
+        "gender": patient.gender,
+        "age": age,
+        "phone": patient.phone,
+        "date_of_birth": patient.date_of_birth
+    }
 
 # Update patient
 @router.put("/{patient_id}", response_model=PatientOut)
