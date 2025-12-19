@@ -20,6 +20,7 @@ rule "Grade 3 Hypertension Classification"
     salience 100
     when
         $patient: PatientData(
+            consultation.consultationType != "follow_up",  // Don't classify for follow-up visits
             physicalExamination.systole >= 180 ||
             physicalExamination.diastole >= 110
         )
@@ -40,6 +41,7 @@ rule "Grade 2 Hypertension Classification"
     salience 90
     when
         $patient: PatientData(
+            consultation.consultationType != "follow_up",  // Don't classify for follow-up visits
             (physicalExamination.systole >= 160 && physicalExamination.systole < 180) ||
             (physicalExamination.diastole >= 100 && physicalExamination.diastole < 110)
         )
@@ -61,6 +63,7 @@ rule "Grade 1 Hypertension Classification"
     salience 80
     when
         $patient: PatientData(
+            consultation.consultationType != "follow_up",  // Don't classify for follow-up visits
             (physicalExamination.systole >= 140 && physicalExamination.systole <= 159) ||
             (physicalExamination.diastole >= 90 && physicalExamination.diastole <= 99)
         )
@@ -81,6 +84,7 @@ rule "Isolated Systolic Hypertension Classification"
     salience 75
     when
         $patient: PatientData(
+            consultation.consultationType != "follow_up",  // Don't classify for follow-up visits
             physicalExamination.systole >= 140 &&
             physicalExamination.diastole < 90
         )
@@ -102,6 +106,7 @@ rule "Isolated Diastolic Hypertension Classification"
     salience 75
     when
         $patient: PatientData(
+            consultation.consultationType != "follow_up",  // Don't classify for follow-up visits
             physicalExamination.systole < 140 &&
             physicalExamination.diastole >= 90
         )
@@ -116,6 +121,61 @@ rule "Isolated Diastolic Hypertension Classification"
         decision.setConfidenceLevel("HIGH");
         $patient.addDecision(decision);
         System.out.println("Applied rule: Isolated Diastolic Hypertension Classification");
+end
+
+// Follow-up rule: uncontrolled hypertension compared to previous visit
+rule "Hypertension Follow-up - BP still above target"
+    salience 85  // Higher than initial classification rules
+    when
+        $patient: PatientData(
+            consultation.consultationType == "follow_up",
+            (previousSystole != null || previousDiastole != null),
+            (physicalExamination.systole >= 140 || physicalExamination.diastole >= 90)
+        )
+    then
+        ClinicalDecision decision = new ClinicalDecision();
+        
+        // Classify the current hypertension grade
+        String grade = "Grade 1"; // default
+        if (physicalExamination.systole >= 180 || physicalExamination.diastole >= 110) {
+            grade = "Grade 3";
+            decision.setDiagnosis("Severe Hypertension - uncontrolled on follow-up");
+            decision.setPatientAdvice("EMERGENCY: Hypertensive urgency/emergency on follow-up. Immediate medical attention required. Step up therapy urgently.");
+            decision.setNeedsReferral(true);
+            decision.setReferralReason("Grade 3 Hypertension - uncontrolled on follow-up");
+        } else if ((physicalExamination.systole >= 160 && physicalExamination.systole < 180) || 
+                   (physicalExamination.diastole >= 100 && physicalExamination.diastole < 110)) {
+            grade = "Grade 2";
+            decision.setDiagnosis("Hypertension Grade 2 - uncontrolled on follow-up");
+            decision.setPatientAdvice("Blood pressure remains above target on follow-up. Requires dual or triple combination therapy. Urgent step-up needed.");
+            decision.setNeedsReferral(true);
+            decision.setReferralReason("Grade 2 Hypertension - uncontrolled on follow-up");
+        } else {
+            decision.setDiagnosis("Hypertension Grade 1 - uncontrolled on follow-up");
+            decision.setPatientAdvice("Blood pressure remains above target on follow-up. Step up monotherapy or initiate dual therapy per algorithm.");
+        }
+        
+        decision.setStage(grade + " - BP not at target after previous visit");
+        
+        // Add treatment recommendations based on grade
+        if (grade == "Grade 3") {
+            decision.addMedication("Labetalol IV - first line emergency");
+            decision.addMedication("Nicardipine IV - alternative");
+            decision.addMedication("Nitroprusside IV - for specific emergencies");
+        } else if (grade == "Grade 2") {
+            decision.addMedication("(ACEI OR ARB) + CCB  -- DUAL THERAPY");
+            decision.addMedication("OR (ACEI OR ARB) + Diuretic  -- DUAL THERAPY");
+            decision.addMedication("Single Pill Combination preferred");
+        } else {
+            decision.addMedication("Amlodipine 5-10 mg once daily  -- CCB");
+            decision.addMedication("Hydrochlorothiazide 12.5-25 mg once daily  -- Thiazide diuretic");
+            decision.addMedication("Lisinopril 2.5-40 mg once daily  -- ACE inhibitor");
+            decision.addMedication("Losartan 25-50 mg once daily  -- ARB");
+        }
+        
+        decision.setConfidenceLevel("HIGH");
+        $patient.addDecision(decision);
+        System.out.println("Applied rule: Hypertension Follow-up - BP still above target");
 end
 
 // Rule 6: High Normal BP (Low Priority)

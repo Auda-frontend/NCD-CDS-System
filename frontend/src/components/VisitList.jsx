@@ -26,8 +26,8 @@ const VisitList = ({ visits, patients, loading, onEdit, onRefresh }) => {
   };
 
   const getPatientName = (patientId) => {
-    const patient = patients.find(p => p.id === patientId);
-    return patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown Patient';
+    const patient = patients.find(p => p.id === patientId || p.patient_id === patientId);
+    return patient ? (patient.full_name || 'Unknown Patient') : 'Unknown Patient';
   };
 
   const getConsultationTypeColor = (type) => {
@@ -83,7 +83,7 @@ const VisitList = ({ visits, patients, loading, onEdit, onRefresh }) => {
             {visits.map((visit) => (
               <tr key={visit.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {visit.id}
+                  {visit.id ? visit.id.substring(0, 8) + '...' : 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {getPatientName(visit.patient_id)}
@@ -92,22 +92,47 @@ const VisitList = ({ visits, patients, loading, onEdit, onRefresh }) => {
                   {formatDate(visit.visit_date)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${getConsultationTypeColor(visit.consultation_type)}`}>
-                    {visit.consultation_type?.replace('_', ' ') || 'N/A'}
-                  </span>
+                  {(() => {
+                    const consultationType = visit.consultation?.consultation_type || visit.consultation_type || 'N/A';
+                    return (
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${getConsultationTypeColor(consultationType)}`}>
+                        {typeof consultationType === 'string' ? consultationType.replace('_', ' ') : 'N/A'}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                  {visit.chief_complaint || 'N/A'}
+                  {visit.chief_complaint || visit.consultation?.chief_complaint || visit.reason || 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {visit.systolic_bp && visit.diastolic_bp ? (
-                    <span>{visit.systolic_bp}/{visit.diastolic_bp} mmHg</span>
-                  ) : (
-                    'N/A'
-                  )}
-                  {visit.temperature && (
-                    <span className="ml-2">{visit.temperature}°C</span>
-                  )}
+                  <div className="flex flex-col gap-1">
+                    {(() => {
+                      // Try direct fields first, then nested in physical_examination
+                      const systole = visit.systole || visit.physical_examination?.systole;
+                      const diastole = visit.diastole || visit.physical_examination?.diastole;
+                      const temp = visit.temperature || visit.physical_examination?.temperature;
+                      const pulse = visit.pulse || visit.physical_examination?.pulse;
+                      
+                      return (
+                        <>
+                          {systole && diastole ? (
+                            <span>{systole}/{diastole} mmHg</span>
+                          ) : (
+                            <span className="text-gray-400">BP: N/A</span>
+                          )}
+                          {temp && (
+                            <span>Temp: {temp}°C</span>
+                          )}
+                          {pulse && (
+                            <span>Pulse: {pulse} bpm</span>
+                          )}
+                          {!systole && !diastole && !temp && !pulse && (
+                            <span className="text-gray-400">N/A</span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <button

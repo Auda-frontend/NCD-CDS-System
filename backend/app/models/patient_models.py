@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
 from enum import Enum
 from datetime import datetime
@@ -9,9 +9,9 @@ class Gender(str, Enum):
     OTHER = "Other"
 
 class ConsultationType(str, Enum):
-    INITIAL = "initial"
-    FOLLOW_UP = "follow-up"
-    EMERGENCY = "emergency"
+    initial = "initial"
+    follow_up = "follow_up"
+    emergency = "emergency"
 
 class DiabetesOnset(str, Enum):
     ACUTE = "acute"
@@ -107,6 +107,13 @@ class Investigations(BaseModel):
     ldl_cholesterol: Optional[float] = Field(None, ge=0, description="LDL cholesterol level")
     additional_tests: List[str] = []
 
+    @field_validator("urine_protein", mode="before")
+    @classmethod
+    def validate_urine_protein(cls, v):
+        if v is not None and v < 0:
+            return 0.0  # Set negative values to 0
+        return v
+
 class ClinicalDecision(BaseModel):
     diagnosis: Optional[str] = None
     stage: Optional[str] = None
@@ -125,6 +132,10 @@ class PatientData(BaseModel):
     social_history: SocialHistory
     physical_examination: PhysicalExamination
     investigations: Optional[Investigations] = None  # Added for diabetes
+    # Optional previous-visit snapshot for longitudinal hypertension logic
+    previous_systole: Optional[float] = None
+    previous_diastole: Optional[float] = None
+    previous_visit_date: Optional[datetime] = None
 
 class CDSRequest(BaseModel):
     patient_data: PatientData

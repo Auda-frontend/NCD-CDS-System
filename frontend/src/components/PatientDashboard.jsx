@@ -88,11 +88,14 @@ const PatientDashboard = () => {
 
   const followUpState = useMemo(() => {
     if (!appointments || appointments.length === 0) return 'ACTIVE';
-    const withState = appointments.find((a) => a.follow_up_state);
-    if (withState) return withState.follow_up_state;
-    const maxMissed = Math.max(...appointments.map((a) => a.missed_count ?? 0));
-    if (maxMissed >= 3) return 'DROPOUT';
-    if (maxMissed >= 1) return 'LOST_FOLLOW_UP';
+    
+    // Count total number of missed appointments (status = 'MISSED')
+    const missedAppointments = appointments.filter(a => a.status === 'MISSED');
+    const totalMissedCount = missedAppointments.length;
+    
+    // Calculate follow-up status based on total missed appointments
+    if (totalMissedCount >= 3) return 'DROPOUT';
+    if (totalMissedCount >= 1) return 'LOST_FOLLOW_UP';
     return 'ACTIVE';
   }, [appointments]);
 
@@ -203,7 +206,7 @@ const PatientDashboard = () => {
                     <div>
                       <div className="font-medium text-gray-900">{formatDateTime(v.visit_date)}</div>
                       <div className="text-xs text-gray-500">
-                        Reason: {v.reason || v.chief_complaint || 'N/A'}
+                        Consultation Type: {v.consultation?.consultation_type || 'N/A'}
                       </div>
                     </div>
                     <div className="text-xs text-gray-500">ID: {v.id}</div>
@@ -292,27 +295,37 @@ const PatientDashboard = () => {
             <div className="bg-white border rounded-lg shadow-sm">
               <div className="px-4 py-3 border-b flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-800">Appointments</h3>
+                <div className="text-xs text-gray-500">
+                  Missed: {appointments.filter(a => a.status === 'MISSED').length}
+                </div>
               </div>
               <div className="divide-y max-h-64 overflow-y-auto text-sm">
                 {appointments.length === 0 && (
                   <div className="p-4 text-gray-500">No appointments scheduled.</div>
                 )}
-                {appointments.map((a) => (
-                  <div key={a.id} className="px-4 py-3 flex justify-between">
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {formatDateTime(a.scheduled_at)}
+                {appointments.map((a) => {
+                  const statusColor = a.status === 'MISSED' ? 'text-red-600' : 
+                                     a.status === 'ATTENDED' ? 'text-green-600' : 
+                                     a.status === 'CANCELLED' ? 'text-gray-500' : 'text-blue-600';
+                  return (
+                    <div key={a.id} className="px-4 py-3 flex justify-between">
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {formatDateTime(a.scheduled_at)}
+                        </div>
+                        <div className="text-xs text-gray-500">Reason: {a.reason || 'N/A'}</div>
                       </div>
-                      <div className="text-xs text-gray-500">Reason: {a.reason || 'N/A'}</div>
+                      <div className="text-xs text-right">
+                        <div className={`font-semibold ${statusColor}`}>
+                          {a.status || 'SCHEDULED'}
+                        </div>
+                        {a.status === 'MISSED' && typeof a.missed_count === 'number' && (
+                          <div className="text-red-500 mt-1">Missed Count: {a.missed_count}</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500 text-right">
-                      <div>Status: {a.status}</div>
-                      {typeof a.missed_count === 'number' && (
-                        <div>Missed: {a.missed_count}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

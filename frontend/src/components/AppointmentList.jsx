@@ -23,7 +23,14 @@ const AppointmentList = ({ appointments, patients, loading, onEdit, onRefresh })
   const formatDateTime = (dt) => {
     if (!dt) return 'N/A';
     const d = new Date(dt);
-    return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    // Format in local timezone to show the exact time that was set
+    const dateStr = d.toLocaleDateString();
+    const timeStr = d.toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false // Use 24-hour format for consistency
+    });
+    return `${dateStr} ${timeStr}`;
   };
 
   const getPatientName = (patientId) => {

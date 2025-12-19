@@ -20,13 +20,30 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
   useEffect(() => {
     if (appointment) {
       const scheduled = appointment.scheduled_at ? new Date(appointment.scheduled_at) : null;
-      setFormData({
-        patient_id: appointment.patient_id || '',
-        appointment_date: scheduled ? scheduled.toISOString().split('T')[0] : '',
-        appointment_time: scheduled ? scheduled.toISOString().slice(11, 16) : '',
-        reason: appointment.reason || '',
-        status: appointment.status || 'SCHEDULED',
-      });
+      if (scheduled) {
+        // Format date and time in local timezone to match what user sees
+        const year = scheduled.getFullYear();
+        const month = String(scheduled.getMonth() + 1).padStart(2, '0');
+        const day = String(scheduled.getDate()).padStart(2, '0');
+        const hours = String(scheduled.getHours()).padStart(2, '0');
+        const minutes = String(scheduled.getMinutes()).padStart(2, '0');
+        
+        setFormData({
+          patient_id: appointment.patient_id || '',
+          appointment_date: `${year}-${month}-${day}`,
+          appointment_time: `${hours}:${minutes}`,
+          reason: appointment.reason || '',
+          status: appointment.status || 'SCHEDULED',
+        });
+      } else {
+        setFormData({
+          patient_id: appointment.patient_id || '',
+          appointment_date: '',
+          appointment_time: '',
+          reason: appointment.reason || '',
+          status: appointment.status || 'SCHEDULED',
+        });
+      }
     }
   }, [appointment]);
 
@@ -44,7 +61,16 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
       alert('Please select appointment date and time.');
       return;
     }
-    const scheduled_at = `${formData.appointment_date}T${formData.appointment_time}`;
+    // Create a local datetime object to preserve the exact time entered
+    // This ensures the time is treated as local time, not UTC
+    const [year, month, day] = formData.appointment_date.split('-').map(Number);
+    const [hours, minutes] = formData.appointment_time.split(':').map(Number);
+    const localDateTime = new Date(year, month - 1, day, hours, minutes);
+    
+    // Format as ISO string with local timezone offset
+    // This preserves the exact time the user entered
+    const scheduled_at = localDateTime.toISOString();
+    
     const payload = {
       patient_id: formData.patient_id,
       scheduled_at,
@@ -71,7 +97,7 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
           <option value="">Select a patient</option>
           {patients.map((patient) => (
             <option key={patient.id} value={patient.id}>
-              {patient.first_name} {patient.last_name} (ID: {patient.id})
+              {patient.full_name} (ID: {patient.patient_id || patient.id})
             </option>
           ))}
         </select>
