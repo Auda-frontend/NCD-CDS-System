@@ -122,6 +122,17 @@ class DroolsIntegrationService:
                 "ldlCholesterol": patient_data.investigations.ldl_cholesterol,
                 "additionalTests": patient_data.investigations.additional_tests
             }
+
+        # Optional previous-visit history for longitudinal HTN logic
+        history: Dict[str, Any] = {}
+        if getattr(patient_data, "previous_systole", None) is not None:
+            history["previousSystole"] = patient_data.previous_systole
+        if getattr(patient_data, "previous_diastole", None) is not None:
+            history["previousDiastole"] = patient_data.previous_diastole
+        if getattr(patient_data, "previous_visit_date", None) is not None:
+            history["previousVisitDate"] = patient_data.previous_visit_date.isoformat()
+        if history:
+            java_input["history"] = history
         
         return java_input
     

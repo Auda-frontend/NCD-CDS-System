@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -6,6 +6,42 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
   const [creatingPrescription, setCreatingPrescription] = useState(false);
   const [selectedMeds, setSelectedMeds] = useState({});
   const [selectedTests, setSelectedTests] = useState({});
+  const [processedMeds, setProcessedMeds] = useState({});
+  const [processedTests, setProcessedTests] = useState({});
+
+  // Load persisted state on component mount
+  useEffect(() => {
+    if (visit?.id) {
+      const visitKey = `cds_selections_${visit.id}`;
+      const saved = localStorage.getItem(visitKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setSelectedMeds(parsed.selectedMeds || {});
+          setSelectedTests(parsed.selectedTests || {});
+          setProcessedMeds(parsed.processedMeds || {});
+          setProcessedTests(parsed.processedTests || {});
+        } catch (e) {
+          console.error('Error loading saved CDS selections:', e);
+        }
+      }
+
+    }
+  }, [visit?.id]);
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    if (visit?.id) {
+      const visitKey = `cds_selections_${visit.id}`;
+      const state = {
+        selectedMeds,
+        selectedTests,
+        processedMeds,
+        processedTests
+      };
+      localStorage.setItem(visitKey, JSON.stringify(state));
+    }
+  }, [visit?.id, selectedMeds, selectedTests, processedMeds, processedTests]);
 
   // Deduplicate recommendations (backend may return repeated entries)
   const uniqueRecommendations = React.useMemo(() => {
@@ -58,6 +94,9 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
     setSelectedMeds((prev) => {
       const key = `${recId}:${medIdx}`;
       const next = { ...prev };
+      // Don't allow toggling if already processed
+      if (processedMeds[key]) return next;
+      
       if (next[key]) {
         delete next[key];
       } else {
@@ -71,6 +110,9 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
     setSelectedTests((prev) => {
       const key = `${recId}:${testIdx}`;
       const next = { ...prev };
+      // Don't allow toggling if already processed
+      if (processedTests[key]) return next;
+      
       if (next[key]) {
         delete next[key];
       } else {
@@ -127,6 +169,8 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
       }
 
       alert(`Created ${selected.length} prescription(s) successfully.`);
+      // Mark selected meds as processed instead of resetting
+      setProcessedMeds((prev) => ({ ...prev, ...selectedMeds }));
       setSelectedMeds({});
       onRefresh();
     } catch (error) {
@@ -140,11 +184,18 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
   const handleCreateSelectedTests = async () => {
     if (!visit) return;
     const selected = [];
+    const urgentKeys = new Set();
+
     uniqueRecommendations.forEach((rec) => {
       (rec.recommended_tests || []).forEach((test, idx) => {
         const key = `${rec.id || 'rec'}:${idx}`;
+        // Detect urgent tests by name, e.g. "ECG - urgent"
+        const isUrgent = (test.test_name || '').toLowerCase().includes('urgent');
+        if (isUrgent) {
+          urgentKeys.add(key);
+        }
         if (selectedTests[key]) {
-          selected.push({ rec, test, idx });
+          selected.push({ rec, test, idx, key });
         }
       });
     });
@@ -152,6 +203,15 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
     if (selected.length === 0) {
       alert('Please select at least one test.');
       return;
+    }
+
+    // Enforce: all urgent tests must be selected before saving
+    if (urgentKeys.size > 0) {
+      const selectedUrgentCount = selected.filter(item => urgentKeys.has(item.key)).length;
+      if (selectedUrgentCount !== urgentKeys.size) {
+        alert('All urgent tests (highlighted in red) must be selected before saving.');
+        return;
+      }
     }
 
     setCreatingPrescription(true);
@@ -184,6 +244,8 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
       }
 
       alert(`Saved ${selected.length} test(s) successfully.`);
+      // Mark selected tests as processed instead of resetting
+      setProcessedTests((prev) => ({ ...prev, ...selectedTests }));
       setSelectedTests({});
       onRefresh();
     } catch (error) {
@@ -297,10 +359,11 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
                       {recommendation.recommended_medications.map((med, index) => {
                         const key = `${recommendation.id || 'rec'}:${index}`;
                         const checked = !!selectedMeds[key];
+                        const isProcessed = !!processedMeds[key];
                         return (
                         <div
                           key={index}
-                          className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                          className={`border border-gray-200 rounded-lg p-4 ${isProcessed ? 'bg-green-50' : 'bg-gray-50'}`}
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
@@ -322,14 +385,20 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
                                   <span className="font-medium">Reason:</span> {med.reason}
                                 </div>
                               )}
+                              {isProcessed && (
+                                <div className="text-xs text-green-600 font-medium mt-2">
+                                  ✓ Prescription Created
+                                </div>
+                              )}
                             </div>
                             <label className="ml-4 flex items-center space-x-2 text-sm text-gray-700">
                               <input
                                 type="checkbox"
-                                checked={checked}
+                                checked={checked || isProcessed}
+                                disabled={isProcessed}
                                 onChange={() => toggleMed(recommendation.id || 'rec', index)}
                               />
-                              <span>Select</span>
+                              <span>{isProcessed ? 'Created' : 'Select'}</span>
                             </label>
                           </div>
                         </div>
@@ -346,10 +415,12 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
                       {recommendation.recommended_tests.map((test, index) => {
                         const key = `${recommendation.id || 'rec'}:${index}`;
                         const checked = !!selectedTests[key];
+                        const isProcessed = !!processedTests[key];
+                        const isUrgent = (test.test_name || '').toLowerCase().includes('urgent');
                         return (
                         <div
                           key={index}
-                          className="border border-gray-200 rounded-lg p-3 bg-blue-50"
+                          className={`border border-gray-200 rounded-lg p-3 ${isProcessed ? 'bg-green-50' : isUrgent ? 'bg-red-50' : 'bg-blue-50'}`}
                         >
                           <div className="font-medium text-gray-900 mb-1">
                             {test.test_name}
@@ -359,13 +430,19 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
                               {test.reason}
                             </div>
                           )}
+                          {isProcessed && (
+                            <div className="text-xs text-green-600 font-medium mt-1">
+                              ✓ Test Ordered
+                            </div>
+                          )}
                           <label className="mt-2 inline-flex items-center space-x-2 text-sm text-gray-700">
                             <input
                               type="checkbox"
-                              checked={checked}
+                              checked={checked || isProcessed}
+                              disabled={isProcessed}
                               onChange={() => toggleTest(recommendation.id || 'rec', index)}
                             />
-                            <span>Select</span>
+                            <span>{isProcessed ? 'Ordered' : 'Select'}</span>
                           </label>
                         </div>
                       )})}

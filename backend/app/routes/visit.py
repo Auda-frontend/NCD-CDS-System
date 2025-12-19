@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.future import select
 from ..schemas.visit import VisitCreate, VisitUpdate, VisitOut
 from ..crud import visit as visit_crud
 from ..crud import patient as patient_crud
@@ -156,6 +157,26 @@ async def _assemble_patient_data(db: AsyncSession, visit_obj):
     if investigations_payload:
         investigations = patient_models.Investigations(**investigations_payload)
 
+    # Previous-visit snapshot for longitudinal hypertension logic
+    previous_systole = None
+    previous_diastole = None
+    previous_visit_date = None
+    try:
+        result = await db.execute(
+            select(Visit)
+            .where(Visit.patient_id == visit_obj.patient_id, Visit.id != visit_obj.id)
+            .order_by(Visit.visit_date.desc())
+            .limit(1)
+        )
+        prev_visit = result.scalars().first()
+        if prev_visit:
+            previous_systole = prev_visit.systole
+            previous_diastole = prev_visit.diastole
+            previous_visit_date = prev_visit.visit_date
+    except Exception:
+        # If anything goes wrong fetching history, just proceed without it
+        pass
+
     return patient_models.PatientData(
         demographics=demographics,
         consultation=consultation,
@@ -163,6 +184,9 @@ async def _assemble_patient_data(db: AsyncSession, visit_obj):
         social_history=social_history,
         physical_examination=physical_examination,
         investigations=investigations,
+        previous_systole=previous_systole,
+        previous_diastole=previous_diastole,
+        previous_visit_date=previous_visit_date,
     )
 
 

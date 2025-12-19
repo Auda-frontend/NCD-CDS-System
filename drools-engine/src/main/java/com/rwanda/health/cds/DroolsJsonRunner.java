@@ -181,6 +181,19 @@ public class DroolsJsonRunner {
             patientData.setInvestigations(investigations);
         }
 
+        // Optional history block for previous-visit data
+        if (inputData.containsKey("history")) {
+            Map<String, Object> histMap = (Map<String, Object>) inputData.get("history");
+            Object prevSys = histMap.get("previousSystole");
+            if (prevSys != null) {
+                patientData.setPreviousSystole(((Number) prevSys).doubleValue());
+            }
+            Object prevDia = histMap.get("previousDiastole");
+            if (prevDia != null) {
+                patientData.setPreviousDiastole(((Number) prevDia).doubleValue());
+            }
+        }
+
         return patientData;
     }
 

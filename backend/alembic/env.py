@@ -18,7 +18,7 @@ config = context.config
 fileConfig(config.config_file_name)
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
-target_metadata = Base.metadata
+target_metadata = None  # Base.metadata
 
 
 def run_migrations_offline() -> None:

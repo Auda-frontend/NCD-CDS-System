@@ -11,6 +11,10 @@ public class PatientData {
     private PhysicalExamination physicalExamination;
     private Investigations investigations;
     private List<ClinicalDecision> decisions;
+
+    // Optional previous-visit snapshot for longitudinal hypertension logic
+    private Double previousSystole;
+    private Double previousDiastole;
     
     // Constructors
     public PatientData() {
@@ -55,6 +59,12 @@ public class PatientData {
 
     public List<ClinicalDecision> getDecisions() { return decisions; }
     public void setDecisions(List<ClinicalDecision> decisions) { this.decisions = decisions; }
+
+    public Double getPreviousSystole() { return previousSystole; }
+    public void setPreviousSystole(Double previousSystole) { this.previousSystole = previousSystole; }
+
+    public Double getPreviousDiastole() { return previousDiastole; }
+    public void setPreviousDiastole(Double previousDiastole) { this.previousDiastole = previousDiastole; }
     
     public void addDecision(ClinicalDecision decision) {
         this.decisions.add(decision);

@@ -22,7 +22,7 @@ class Appointment(Base):
     patient_id = Column(UUID(as_uuid=False), ForeignKey("patients.id"), nullable=False, index=True)
     visit_id = Column(UUID(as_uuid=False), ForeignKey("visits.id"), nullable=True, index=True)
     scheduled_at = Column(DateTime(timezone=True), nullable=False)
-    status = Column(Enum(AppointmentStatus), default=AppointmentStatus.SCHEDULED)
+    status = Column(Enum(AppointmentStatus, name="appointmentstatus", create_type=False), default=AppointmentStatus.SCHEDULED)
     missed_count = Column(Integer, default=0)
     reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
