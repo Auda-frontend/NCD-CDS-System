@@ -94,14 +94,10 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
     setSelectedMeds((prev) => {
       const key = `${recId}:${medIdx}`;
       const next = { ...prev };
-      // Don't allow toggling if already processed
-      if (processedMeds[key]) return next;
-      
-      if (next[key]) {
-        delete next[key];
-      } else {
-        next[key] = true;
-      }
+      // Once chosen or processed, keep it locked
+      if (processedMeds[key] || next[key]) return next;
+
+      next[key] = true;
       return next;
     });
   };
@@ -110,14 +106,10 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
     setSelectedTests((prev) => {
       const key = `${recId}:${testIdx}`;
       const next = { ...prev };
-      // Don't allow toggling if already processed
-      if (processedTests[key]) return next;
-      
-      if (next[key]) {
-        delete next[key];
-      } else {
-        next[key] = true;
-      }
+      // Once chosen or processed, keep it locked
+      if (processedTests[key] || next[key]) return next;
+
+      next[key] = true;
       return next;
     });
   };
@@ -395,7 +387,7 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
                               <input
                                 type="checkbox"
                                 checked={checked || isProcessed}
-                                disabled={isProcessed}
+                                disabled={checked || isProcessed}
                                 onChange={() => toggleMed(recommendation.id || 'rec', index)}
                               />
                               <span>{isProcessed ? 'Created' : 'Select'}</span>
@@ -439,7 +431,7 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
                             <input
                               type="checkbox"
                               checked={checked || isProcessed}
-                              disabled={isProcessed}
+                              disabled={checked || isProcessed}
                               onChange={() => toggleTest(recommendation.id || 'rec', index)}
                             />
                             <span>{isProcessed ? 'Ordered' : 'Select'}</span>

@@ -8,12 +8,13 @@ const statusOptions = [
   { value: 'RESCHEDULED', label: 'Rescheduled' },
 ];
 
-const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
+const AppointmentForm = ({ appointment, patients, onSubmit, onCancel, readOnly = false }) => {
   const [formData, setFormData] = useState({
     patient_id: '',
     appointment_date: '',
     appointment_time: '',
     reason: '',
+    notes: '',
     status: 'SCHEDULED',
   });
 
@@ -33,6 +34,7 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
           appointment_date: `${year}-${month}-${day}`,
           appointment_time: `${hours}:${minutes}`,
           reason: appointment.reason || '',
+          notes: appointment.notes || '',
           status: appointment.status || 'SCHEDULED',
         });
       } else {
@@ -41,6 +43,7 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
           appointment_date: '',
           appointment_time: '',
           reason: appointment.reason || '',
+          notes: appointment.notes || '',
           status: appointment.status || 'SCHEDULED',
         });
       }
@@ -57,6 +60,10 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (readOnly) {
+      onCancel();
+      return;
+    }
     if (!formData.appointment_date || !formData.appointment_time) {
       alert('Please select appointment date and time.');
       return;
@@ -92,6 +99,7 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
           value={formData.patient_id}
           onChange={handleChange}
           required
+          disabled={readOnly}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">Select a patient</option>
@@ -116,6 +124,7 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
             onChange={handleChange}
             required
             min={new Date().toISOString().split('T')[0]}
+          disabled={readOnly}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -130,6 +139,7 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
             value={formData.appointment_time}
             onChange={handleChange}
             required
+          disabled={readOnly}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -146,6 +156,7 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
           onChange={handleChange}
           required
           rows={3}
+          disabled={readOnly}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Describe the purpose of this appointment..."
         />
@@ -160,6 +171,7 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
           value={formData.notes}
           onChange={handleChange}
           rows={2}
+          disabled={readOnly}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Any special instructions or additional information..."
         />
@@ -175,6 +187,7 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
             name="status"
             value={formData.status}
             onChange={handleChange}
+          disabled={readOnly}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {statusOptions.map((opt) => (
@@ -194,12 +207,14 @@ const AppointmentForm = ({ appointment, patients, onSubmit, onCancel }) => {
         >
           Cancel
         </button>
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
-          {appointment ? 'Update Appointment' : 'Schedule Appointment'}
-        </button>
+        {!readOnly && (
+          <button
+            type="submit"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            {appointment ? 'Update Appointment' : 'Schedule Appointment'}
+          </button>
+        )}
       </div>
     </form>
   );

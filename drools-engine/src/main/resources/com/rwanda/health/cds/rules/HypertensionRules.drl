@@ -132,19 +132,20 @@ rule "Hypertension Follow-up - BP still above target"
             (previousSystole != null || previousDiastole != null),
             (physicalExamination.systole >= 140 || physicalExamination.diastole >= 90)
         )
+        $exam: PhysicalExamination() from $patient.getPhysicalExamination()
     then
         ClinicalDecision decision = new ClinicalDecision();
         
         // Classify the current hypertension grade
         String grade = "Grade 1"; // default
-        if (physicalExamination.systole >= 180 || physicalExamination.diastole >= 110) {
+        if ($exam.getSystole() >= 180 || $exam.getDiastole() >= 110) {
             grade = "Grade 3";
             decision.setDiagnosis("Severe Hypertension - uncontrolled on follow-up");
             decision.setPatientAdvice("EMERGENCY: Hypertensive urgency/emergency on follow-up. Immediate medical attention required. Step up therapy urgently.");
             decision.setNeedsReferral(true);
             decision.setReferralReason("Grade 3 Hypertension - uncontrolled on follow-up");
-        } else if ((physicalExamination.systole >= 160 && physicalExamination.systole < 180) || 
-                   (physicalExamination.diastole >= 100 && physicalExamination.diastole < 110)) {
+        } else if (($exam.getSystole() >= 160 && $exam.getSystole() < 180) || 
+                   ($exam.getDiastole() >= 100 && $exam.getDiastole() < 110)) {
             grade = "Grade 2";
             decision.setDiagnosis("Hypertension Grade 2 - uncontrolled on follow-up");
             decision.setPatientAdvice("Blood pressure remains above target on follow-up. Requires dual or triple combination therapy. Urgent step-up needed.");

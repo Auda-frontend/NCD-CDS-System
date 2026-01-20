@@ -1,6 +1,6 @@
 import React from 'react';
 
-const VisitList = ({ visits, patients, loading, onEdit, onRefresh }) => {
+const VisitList = ({ visits, patients, loading, onEdit, onRefresh, onView }) => {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -142,6 +142,7 @@ const VisitList = ({ visits, patients, loading, onEdit, onRefresh }) => {
                     Edit
                   </button>
                   <button
+                    onClick={() => (onView ? onView(visit) : onEdit(visit))}
                     className="text-green-600 hover:text-green-900"
                   >
                     View Details

@@ -9,6 +9,7 @@ const PatientsView = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [viewMode, setViewMode] = useState(false);
 
   useEffect(() => {
     loadPatients();
@@ -66,6 +67,13 @@ const PatientsView = () => {
 
   const handleEditPatient = (patient) => {
     setSelectedPatient(patient);
+    setViewMode(false);
+    setShowForm(true);
+  };
+
+  const handleViewPatient = (patient) => {
+    setSelectedPatient(patient);
+    setViewMode(true);
     setShowForm(true);
   };
 
@@ -99,6 +107,7 @@ const PatientsView = () => {
           </div>
           <PatientForm
             patient={selectedPatient}
+            readOnly={viewMode}
             onSubmit={handlePatientSubmit}
             onCancel={() => setShowForm(false)}
           />
@@ -108,6 +117,7 @@ const PatientsView = () => {
           patients={patients}
           loading={loading}
           onEdit={handleEditPatient}
+          onView={handleViewPatient}
           onRefresh={loadPatients}
         />
       )}

@@ -10,6 +10,7 @@ const AppointmentsView = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [viewMode, setViewMode] = useState(false);
 
   useEffect(() => {
     loadAppointments();
@@ -70,6 +71,13 @@ const AppointmentsView = () => {
 
   const handleEditAppointment = (appointment) => {
     setSelectedAppointment(appointment);
+    setViewMode(false);
+    setShowForm(true);
+  };
+
+  const handleViewAppointment = (appointment) => {
+    setSelectedAppointment(appointment);
+    setViewMode(true);
     setShowForm(true);
   };
 
@@ -104,6 +112,7 @@ const AppointmentsView = () => {
           <AppointmentForm
             appointment={selectedAppointment}
             patients={patients}
+            readOnly={viewMode}
             onSubmit={handleAppointmentSubmit}
             onCancel={() => setShowForm(false)}
           />
@@ -114,6 +123,7 @@ const AppointmentsView = () => {
           patients={patients}
           loading={loading}
           onEdit={handleEditAppointment}
+          onView={handleViewAppointment}
           onRefresh={loadAppointments}
         />
       )}
