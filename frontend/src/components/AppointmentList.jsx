@@ -1,6 +1,6 @@
 import React from 'react';
 
-const AppointmentList = ({ appointments, patients, loading, onEdit, onRefresh }) => {
+const AppointmentList = ({ appointments, patients, loading, onEdit, onRefresh, onView }) => {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -114,6 +114,7 @@ const AppointmentList = ({ appointments, patients, loading, onEdit, onRefresh })
                     Edit
                   </button>
                   <button
+                    onClick={() => (onView ? onView(appointment) : onEdit(appointment))}
                     className="text-green-600 hover:text-green-900"
                   >
                     View Details

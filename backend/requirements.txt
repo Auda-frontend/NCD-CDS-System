@@ -10,7 +10,7 @@ pytest==7.4.3
 pytest-asyncio==0.21.1
 httpx==0.25.2
 psycopg2-binary==2.9.9
-SQLAlchemy[asyncio]
+SQLAlchemy>=2.0
 asyncpg
 alembic
 psycopg2-binary

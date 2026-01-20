@@ -336,8 +336,9 @@ end
 rule "Diabetes with Hypertension Comorbidity"
     when
         $patient: PatientData(
-            physicalExamination.systole >= 130 ||
-            physicalExamination.diastole >= 80
+            physicalExamination != null,
+            (physicalExamination.systole >= 130 ||
+            physicalExamination.diastole >= 80)
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then

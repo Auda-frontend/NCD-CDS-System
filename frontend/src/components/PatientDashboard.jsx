@@ -110,7 +110,7 @@ const PatientDashboard = () => {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Left: patient search and list */}
       <div className="w-80 border-r bg-white">
         <div className="p-4 border-b">
@@ -123,7 +123,7 @@ const PatientDashboard = () => {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
-        <div className="overflow-y-auto max-h-[calc(100vh-6rem)]">
+        <div className="overflow-y-auto h-full">
           {filteredPatients.map((p) => (
             <button
               key={p.id}

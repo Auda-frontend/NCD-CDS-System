@@ -55,6 +55,10 @@ const VisitsView = () => {
     setShowForm(true);
   };
 
+  const handleViewVisit = (visit) => {
+    handleEditVisit(visit);
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -96,6 +100,7 @@ const VisitsView = () => {
           patients={patients}
           loading={loading}
           onEdit={handleEditVisit}
+          onView={handleViewVisit}
           onRefresh={loadVisits}
         />
       )}

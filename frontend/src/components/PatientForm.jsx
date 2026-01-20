@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const PatientForm = ({ patient, onSubmit, onCancel }) => {
+const PatientForm = ({ patient, onSubmit, onCancel, readOnly = false }) => {
   const [formData, setFormData] = useState({
     patient_id: '',
     full_name: '',
@@ -31,6 +31,10 @@ const PatientForm = ({ patient, onSubmit, onCancel }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (readOnly) {
+      onCancel();
+      return;
+    }
     onSubmit(formData);
   };
 
@@ -46,6 +50,7 @@ const PatientForm = ({ patient, onSubmit, onCancel }) => {
             name="patient_id"
             value={formData.patient_id}
             onChange={handleChange}
+            disabled={readOnly}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="External patient identifier"
           />
@@ -61,6 +66,7 @@ const PatientForm = ({ patient, onSubmit, onCancel }) => {
             value={formData.full_name}
             onChange={handleChange}
             required
+            disabled={readOnly}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter patient's full name"
           />
@@ -74,6 +80,7 @@ const PatientForm = ({ patient, onSubmit, onCancel }) => {
             name="gender"
             value={formData.gender}
             onChange={handleChange}
+            disabled={readOnly}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select Gender</option>
@@ -92,6 +99,7 @@ const PatientForm = ({ patient, onSubmit, onCancel }) => {
             name="date_of_birth"
             value={formData.date_of_birth}
             onChange={handleChange}
+            disabled={readOnly}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -105,6 +113,7 @@ const PatientForm = ({ patient, onSubmit, onCancel }) => {
             name="phone"
             value={formData.phone}
             onChange={handleChange}
+            disabled={readOnly}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter phone number"
           />
@@ -119,12 +128,14 @@ const PatientForm = ({ patient, onSubmit, onCancel }) => {
         >
           Cancel
         </button>
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
-          {patient ? 'Update Patient' : 'Create Patient'}
-        </button>
+        {!readOnly && (
+          <button
+            type="submit"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            {patient ? 'Update Patient' : 'Create Patient'}
+          </button>
+        )}
       </div>
     </form>
   );
