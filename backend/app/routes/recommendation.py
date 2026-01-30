@@ -14,6 +14,11 @@ async def create_recommendation(payload: CDSRecommendationCreate, db: AsyncSessi
     return await recommendation_crud.create_recommendation(db, payload)
 
 
+@router.get("/", response_model=List[CDSRecommendationOut])
+async def read_all_recommendations(skip: int = 0, limit: int = 1000, db: AsyncSession = Depends(get_db)):
+    return await recommendation_crud.get_all_recommendations(db, skip=skip, limit=limit)
+
+
 @router.get("/{recommendation_id}", response_model=CDSRecommendationOut)
 async def read_recommendation(recommendation_id: str, db: AsyncSession = Depends(get_db)):
     obj = await recommendation_crud.get_recommendation(db, recommendation_id)

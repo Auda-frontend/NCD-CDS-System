@@ -33,6 +33,11 @@ async def get_recommendations_by_patient(db: AsyncSession, patient_id: str):
     return result.scalars().all()
 
 
+async def get_all_recommendations(db: AsyncSession, skip: int = 0, limit: int = 1000):
+    result = await db.execute(select(CDSRecommendation).offset(skip).limit(limit))
+    return result.scalars().all()
+
+
 async def delete_recommendation(db: AsyncSession, recommendation_id: str):
     result = await db.execute(delete(CDSRecommendation).where(CDSRecommendation.id == recommendation_id))
     await db.commit()

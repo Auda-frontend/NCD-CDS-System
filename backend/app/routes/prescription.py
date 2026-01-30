@@ -26,6 +26,11 @@ async def create_prescriptions_bulk(payload: PrescriptionBulkCreate, db: AsyncSe
     return await prescription_crud.create_prescriptions_bulk(db, payload.prescriptions)
 
 
+@router.get("/", response_model=List[PrescriptionOut])
+async def read_all_prescriptions(skip: int = 0, limit: int = 1000, db: AsyncSession = Depends(get_db)):
+    return await prescription_crud.get_all_prescriptions(db, skip=skip, limit=limit)
+
+
 @router.get("/{prescription_id}", response_model=PrescriptionOut)
 async def read_prescription(prescription_id: str, db: AsyncSession = Depends(get_db)):
     obj = await prescription_crud.get_prescription(db, prescription_id)

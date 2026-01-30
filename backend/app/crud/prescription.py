@@ -35,6 +35,16 @@ async def get_prescription(db: AsyncSession, prescription_id: str):
     return result.scalars().first()
 
 
+async def get_all_prescriptions(db: AsyncSession, skip: int = 0, limit: int = 1000):
+    result = await db.execute(
+        select(Prescription)
+        .offset(skip)
+        .limit(limit)
+        .order_by(Prescription.created_at.desc())
+    )
+    return result.scalars().all()
+
+
 async def get_prescriptions_by_visit(db: AsyncSession, visit_id: str, skip: int = 0, limit: int = 100):
     result = await db.execute(
         select(Prescription)
