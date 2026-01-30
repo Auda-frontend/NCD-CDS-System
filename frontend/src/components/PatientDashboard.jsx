@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import AnalyticsDashboard from './AnalyticsDashboard';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -142,16 +143,12 @@ const PatientDashboard = () => {
         </div>
       </div>
 
-      {/* Right: patient details */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      {/* Right: patient details or analytics */}
+      <div className="flex-1 overflow-hidden">
         {!selectedPatient ? (
-          <div className="h-full flex items-center justify-center text-gray-400">
-            <div className="text-center">
-              <div className="text-5xl mb-4">🔍</div>
-              <p className="text-lg">Search and select a patient to view their summary.</p>
-            </div>
-          </div>
+          <AnalyticsDashboard />
         ) : (
+          <div className="p-6 overflow-y-auto h-full">
           <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -328,6 +325,7 @@ const PatientDashboard = () => {
                 })}
               </div>
             </div>
+          </div>
           </div>
         )}
       </div>
