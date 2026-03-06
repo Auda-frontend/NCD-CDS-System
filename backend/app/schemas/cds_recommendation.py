@@ -3,6 +3,15 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
+class AIExplanationSchema(BaseModel):
+    """One AI explanation (summary + full for clinician and patient)."""
+    clinician_summary: Optional[str] = None
+    clinician_explanation: Optional[str] = None
+    patient_summary: Optional[str] = None
+    patient_explanation: Optional[str] = None
+    sources: List[str] = []
+
+
 class RecommendationMedication(BaseModel):
     name: str
     dosage: Optional[str] = None
@@ -23,6 +32,7 @@ class CDSRecommendationBase(BaseModel):
     risk_classification: Optional[str] = None
     notes: Optional[str] = None
     source: Optional[str] = None  # e.g., drools version
+    explanations: Optional[List[Optional[Dict[str, Any]]]] = None  # AI explanations per decision
 
 
 class CDSRecommendationCreate(CDSRecommendationBase):

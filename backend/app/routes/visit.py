@@ -190,8 +190,29 @@ async def _assemble_patient_data(db: AsyncSession, visit_obj):
     )
 
 
+def _decision_to_dict_for_llm(d):
+    """Convert decision (dict or object) to dict expected by explanation service."""
+    if hasattr(d, "dict"):
+        d = d.dict()
+    return {
+        "diagnosis": d.get("diagnosis"),
+        "stage": d.get("stage"),
+        "subClassification": d.get("sub_classification"),
+        "medications": d.get("medications") or [],
+        "tests": d.get("tests") or [],
+        "patientAdvice": d.get("patient_advice"),
+        "needsReferral": d.get("needs_referral", False),
+        "referralReason": d.get("referral_reason"),
+        "confidenceLevel": d.get("confidence_level"),
+    }
+
+
 @router.post("/{visit_id}/cds-evaluate", response_model=dict)
 async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
+    import os
+    import logging
+    logger = logging.getLogger(__name__)
+
     visit_obj = await visit_crud.get_visit(db, visit_id)
     if not visit_obj:
         raise HTTPException(status_code=404, detail="Visit not found")
@@ -201,7 +222,39 @@ async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
     response = drools_service.evaluate_patient(patient_data)
     decisions = _dict_from_decisions(response.clinical_decisions)
 
-    # Persist decisions and recommendation
+    # AI explanation is additive — failure never blocks clinical decision
+    explanations_payload = None
+    if os.getenv("ENABLE_AI_EXPLANATION", "").strip().lower() == "true" and decisions:
+        try:
+            backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            import sys
+            if backend_dir not in sys.path:
+                sys.path.insert(0, backend_dir)
+            import llm_service
+            patient_ctx = {
+                "age": patient_data.demographics.age or 0,
+                "gender": getattr(patient_data.demographics.gender, "value", str(patient_data.demographics.gender)),
+                "systolic": patient_data.physical_examination.systole or 0,
+                "diastolic": patient_data.physical_examination.diastole or 0,
+            }
+            explanations_payload = []
+            for d in decisions:
+                try:
+                    raw = llm_service.generate_explanation(_decision_to_dict_for_llm(d), patient_ctx)
+                    explanations_payload.append({
+                        "clinician_summary": raw.get("clinician_summary") or "",
+                        "clinician_explanation": raw.get("clinician_explanation") or "",
+                        "patient_summary": raw.get("patient_summary") or "",
+                        "patient_explanation": raw.get("patient_explanation") or "",
+                        "sources": raw.get("sources") or [],
+                    })
+                except Exception as e:
+                    logger.warning("AI explanation failed for one decision: %s", e)
+                    explanations_payload.append(None)
+        except Exception as e:
+            logger.warning("AI explanation skipped: %s", e)
+
+    # Persist decisions and recommendation (including explanations when present)
     await db.execute(
         sa_update(type(visit_obj))
         .where(type(visit_obj).id == visit_obj.id)
@@ -217,6 +270,7 @@ async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
         risk_classification=None,
         notes=response.message,
         source="drools",
+        explanations=explanations_payload,
     )
 
     return {
@@ -227,4 +281,5 @@ async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
         "recommendation_id": recommendation.id,
         "visit_id": str(visit_obj.id),
         "patient_id": str(visit_obj.patient_id),
+        "explanations": explanations_payload,
     }

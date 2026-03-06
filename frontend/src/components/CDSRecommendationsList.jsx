@@ -8,6 +8,10 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
   const [selectedTests, setSelectedTests] = useState({});
   const [processedMeds, setProcessedMeds] = useState({});
   const [processedTests, setProcessedTests] = useState({});
+  // Collapsible AI explanation: key = `${recId}-${explanationIndex}`, value = true when expanded
+  const [explanationOpen, setExplanationOpen] = useState({});
+  // Per-explanation, show full text (false = summary): key = `${recId}-${exIdx}-clinician|patient`
+  const [showFullExplanation, setShowFullExplanation] = useState({});
 
   // Load persisted state on component mount
   useEffect(() => {
@@ -451,6 +455,85 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh }) 
                     <p className="text-sm text-gray-600">
                       {recommendation.notes}
                     </p>
+                  </div>
+                )}
+
+                {/* AI Explanation (collapsible): summary by default, option to show full */}
+                {recommendation.explanations && recommendation.explanations.filter(Boolean).length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    {(recommendation.explanations.filter(Boolean)).map((expl, exIdx) => {
+                      const recKey = recommendation.id || 'rec';
+                      const sectionKey = `${recKey}-${exIdx}`;
+                      const isOpen = explanationOpen[sectionKey];
+                      const showFullClinician = showFullExplanation[`${sectionKey}-clinician`];
+                      const showFullPatient = showFullExplanation[`${sectionKey}-patient`];
+                      const clinicianText = showFullClinician
+                        ? (expl.clinician_explanation || expl.clinician_summary || '')
+                        : (expl.clinician_summary || expl.clinician_explanation || '');
+                      const patientText = showFullPatient
+                        ? (expl.patient_explanation || expl.patient_summary || '')
+                        : (expl.patient_summary || expl.patient_explanation || '');
+                      const hasFullClinician = !!(expl.clinician_explanation && expl.clinician_explanation !== (expl.clinician_summary || ''));
+                      const hasFullPatient = !!(expl.patient_explanation && expl.patient_explanation !== (expl.patient_summary || ''));
+
+                      return (
+                        <div key={sectionKey} className="mb-4 last:mb-0">
+                          <button
+                            type="button"
+                            onClick={() => setExplanationOpen((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
+                            className="flex items-center justify-between w-full text-left py-2 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+                          >
+                            <span className="text-sm font-semibold text-gray-900">
+                              {recommendation.explanations.filter(Boolean).length > 1
+                                ? `AI Explanation (decision ${exIdx + 1})`
+                                : 'AI Explanation'}
+                            </span>
+                            <span className="text-gray-500 text-sm">{isOpen ? '▼' : '▶'}</span>
+                          </button>
+                          {isOpen && (
+                            <div className="mt-2 pl-2 border-l-2 border-slate-200 space-y-4">
+                              {/* Clinician */}
+                              {(expl.clinician_summary || expl.clinician_explanation) && (
+                                <div>
+                                  <h5 className="text-sm font-semibold text-gray-800 mb-1">For clinician</h5>
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{clinicianText}</p>
+                                  {hasFullClinician && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowFullExplanation((prev) => ({ ...prev, [`${sectionKey}-clinician`]: !prev[`${sectionKey}-clinician`] }))}
+                                      className="mt-1 text-xs text-blue-600 hover:text-blue-800"
+                                    >
+                                      {showFullClinician ? 'Show summary' : 'Show full explanation'}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                              {/* Patient */}
+                              {(expl.patient_summary || expl.patient_explanation) && (
+                                <div>
+                                  <h5 className="text-sm font-semibold text-gray-800 mb-1">For patient</h5>
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{patientText}</p>
+                                  {hasFullPatient && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowFullExplanation((prev) => ({ ...prev, [`${sectionKey}-patient`]: !prev[`${sectionKey}-patient`] }))}
+                                      className="mt-1 text-xs text-blue-600 hover:text-blue-800"
+                                    >
+                                      {showFullPatient ? 'Show summary' : 'Show full explanation'}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                              {expl.sources && expl.sources.length > 0 && (
+                                <p className="text-xs text-gray-500">
+                                  Sources: {expl.sources.join('; ')}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

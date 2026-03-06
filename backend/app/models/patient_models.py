@@ -141,12 +141,41 @@ class CDSRequest(BaseModel):
     patient_data: PatientData
     visit_id: str  # UUID of the visit for linking recommendations
 
+class AIExplanationOut(BaseModel):
+    """One AI explanation (clinician + patient, summary + full) for a single decision."""
+    clinician_summary: Optional[str] = None
+    clinician_explanation: Optional[str] = None  # full
+    patient_summary: Optional[str] = None
+    patient_explanation: Optional[str] = None    # full
+    sources: List[str] = []
+
+
 class CDSResponse(BaseModel):
     success: bool
     message: str
     clinical_decisions: List[ClinicalDecision]
     patient_data: PatientData
     execution_time_ms: Optional[float] = None
+    explanations: Optional[List[Optional[AIExplanationOut]]] = None  # one per decision when AI enabled
+
+
+class ExplainRequest(BaseModel):
+    """Request body for POST /api/v1/cds/explain"""
+    decision: Dict[str, Any]  # diagnosis, stage, medications, tests, needsReferral, etc.
+    patient: Dict[str, Any]   # age, gender, systolic, diastolic
+
+
+class ExplainResponse(BaseModel):
+    """Response from POST /api/v1/cds/explain (same shape as generate_explanation output)."""
+    clinician_explanation: str = ""
+    clinician_summary: str = ""
+    patient_explanation: str = ""
+    patient_summary: str = ""
+    sources: List[str] = []
+    rag_grounded: bool = False
+    chunks_used: int = 0
+    ai_enabled: bool = False
+
 
 class HealthCheck(BaseModel):
     status: str

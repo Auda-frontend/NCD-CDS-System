@@ -31,9 +31,11 @@ async def save_recommendations(
     risk_classification: Optional[str] = None,
     notes: Optional[str] = None,
     source: Optional[str] = None,
+    explanations: Optional[List[Optional[Dict[str, Any]]]] = None,
 ):
     """
     Persist CDS recommendations derived from Drools output.
+    Optionally store AI explanations (one per decision).
     """
     meds, tests = _extract_recommendations(decisions)
     payload = CDSRecommendationCreate(
@@ -44,6 +46,7 @@ async def save_recommendations(
         risk_classification=risk_classification,
         notes=notes,
         source=source,
+        explanations=explanations,
     )
     return await cds_crud.create_recommendation(db, payload)
 

@@ -544,7 +544,9 @@ def generate_explanation(decision: dict, patient: dict) -> dict:
     if not ENABLE_AI:
         return {
             "clinician_explanation": "",
+            "clinician_summary":     "",
             "patient_explanation":   "",
+            "patient_summary":       "",
             "sources":               [],
             "rag_grounded":          False,
             "chunks_used":           0,
@@ -560,7 +562,9 @@ def generate_explanation(decision: dict, patient: dict) -> dict:
         )
         return {
             "clinician_explanation": fallback,
+            "clinician_summary":     fallback,
             "patient_explanation":   fallback,
+            "patient_summary":       fallback,
             "sources":               [],
             "rag_grounded":          False,
             "chunks_used":           0,
@@ -605,14 +609,51 @@ def generate_explanation(decision: dict, patient: dict) -> dict:
         temperature=0.3
     )
 
+    # ── Step 5: Summarize for quick reading (default view in UI) ─────────────
+    clinician_summary = _summarize_explanation(clinician_text, "clinician")
+    patient_summary   = _summarize_explanation(patient_text, "patient")
+
     return {
         "clinician_explanation": clinician_text,
+        "clinician_summary":     clinician_summary,
         "patient_explanation":   patient_text,
+        "patient_summary":       patient_summary,
         "sources":               sources,
         "rag_grounded":          len(chunks) > 0,
         "chunks_used":           len(chunks),
         "ai_enabled":            True
     }
+
+
+# =============================================================
+# SUMMARIZATION (for default concise view in UI)
+# =============================================================
+
+SUMMARY_SYSTEM_PROMPT = """You are a medical editor. Summarize the following clinical explanation in 2–3 short paragraphs.
+Keep all critical safety information, exact numbers, drug names, and danger signs.
+Do not add new information. Output only the summary, no preamble."""
+
+
+def _summarize_explanation(text: str, audience: str) -> str:
+    """
+    Produce a short summary for default UI view. If text is empty or already short, return as-is.
+    """
+    if not text or not text.strip():
+        return ""
+    # Already brief (e.g. under ~400 chars) — treat as its own summary
+    if len(text.strip()) <= 400:
+        return text.strip()
+    try:
+        summary = call_llm(
+            system_prompt=SUMMARY_SYSTEM_PROMPT,
+            user_message=text.strip(),
+            max_tokens=350,
+            temperature=0.0
+        )
+        return summary.strip() if summary else text.strip()
+    except Exception as e:
+        print(f"  Summarization failed ({audience}): {e}")
+        return text.strip()
 
 
 # =============================================================
