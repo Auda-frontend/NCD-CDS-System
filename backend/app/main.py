@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+import os
 from .routes import cds_routes
 from .routes import patient as patient_routes
 from .routes import visit as visit_routes
@@ -21,10 +22,20 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+# NOTE: When the frontend runs on http://localhost (port 80) and backend on :8000,
+# you must explicitly allow that origin. Using allow_credentials=True with "*"
+# is not valid CORS and can result in browsers blocking the response.
+cors_origins_env = os.getenv(
+    "CORS_ALLOW_ORIGINS",
+    "http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,http://localhost:5173,http://127.0.0.1:5173",
+)
+cors_allow_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+cors_allow_credentials = os.getenv("CORS_ALLOW_CREDENTIALS", "false").strip().lower() == "true"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development only - restrict in production
-    allow_credentials=True,
+    allow_origins=cors_allow_origins,
+    allow_credentials=cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

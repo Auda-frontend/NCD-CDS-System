@@ -77,6 +77,12 @@ class MedicalHistory(BaseModel):
     danger_signs: bool = False
     treatment_duration: Optional[int] = Field(None, ge=0, description="Treatment duration in months")
     hiv_positive: bool = False
+    @field_validator("diabetes_onset", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, v):
+        if v == "" or v == "null" or v is None:
+            return None
+        return v
 
 class SocialHistory(BaseModel):
     tobacco_use: bool = False

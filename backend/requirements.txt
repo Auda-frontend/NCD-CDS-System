@@ -14,3 +14,9 @@ SQLAlchemy>=2.0
 asyncpg
 alembic
 psycopg2-binary
+
+# AI explanation (RAG + LLM)
+groq
+qdrant-client
+sentence-transformers
+einops

@@ -483,16 +483,21 @@ def retrieve_guideline_chunks(
         primary_hits = []
 
     # Fill remaining slots from any source
-    fallback_response = qdrant_client.query_points(
-        collection_name=COLLECTION_NAME,
-        query=query_vector,
-        limit=limit + 4
-    )
-    fallback_hits = [
-        h for h in fallback_response.points
-        if h.score >= min_score
-        and h.id not in {p.id for p in primary_hits}
-    ]
+    # IMPORTANT: Qdrant may be down/unreachable. In that case, return no chunks
+    # so the explanation layer can still degrade gracefully (non-blocking).
+    try:
+        fallback_response = qdrant_client.query_points(
+            collection_name=COLLECTION_NAME,
+            query=query_vector,
+            limit=limit + 4
+        )
+        fallback_hits = [
+            h for h in fallback_response.points
+            if h.score >= min_score
+            and h.id not in {p.id for p in primary_hits}
+        ]
+    except Exception:
+        fallback_hits = []
 
     combined = primary_hits + fallback_hits
 
