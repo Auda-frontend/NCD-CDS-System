@@ -222,9 +222,13 @@ async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
     response = drools_service.evaluate_patient(patient_data)
     decisions = _dict_from_decisions(response.clinical_decisions)
 
-    # AI explanation is additive — failure never blocks clinical decision
+    # AI explanations can be very slow (external LLM + RAG).
+    # To keep the "Get Recommendations" UX under ~15s, we make them optional here.
     explanations_payload = None
-    if os.getenv("ENABLE_AI_EXPLANATION", "").strip().lower() == "true" and decisions:
+    enable_ai = os.getenv("ENABLE_AI_EXPLANATION", "").strip().lower() == "true"
+    enable_sync_visit_ai = os.getenv("ENABLE_SYNC_VISIT_AI", "false").strip().lower() == "true"
+
+    if enable_ai and enable_sync_visit_ai and decisions:
         try:
             backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             import sys
@@ -252,7 +256,7 @@ async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
                     logger.warning("AI explanation failed for one decision: %s", e)
                     explanations_payload.append(None)
         except Exception as e:
-            logger.warning("AI explanation skipped: %s", e)
+            logger.warning("AI explanation skipped in visit cds-evaluate: %s", e)
 
     # Persist decisions and recommendation (including explanations when present)
     await db.execute(

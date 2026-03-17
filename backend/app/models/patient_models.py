@@ -103,9 +103,8 @@ class PhysicalExamination(BaseModel):
 
 class Investigations(BaseModel):
     hba1c: Optional[float] = Field(None, ge=0, le=20, description="Glycated hemoglobin percentage")
-    fasting_glucose: Optional[float] = Field(None, ge=0, le=50, description="Fasting blood glucose in mmol/L")
-    random_glucose: Optional[float] = Field(None, ge=0, le=50, description="Random blood glucose in mmol/L")
-    blood_glucose: Optional[float] = Field(None, ge=0, le=50, description="Blood glucose in mmol/L")
+    fasting_glucose: Optional[float] = Field(None, ge=0, le=1000, description="Fasting blood glucose in mg/dL")
+    random_glucose: Optional[float] = Field(None, ge=0, le=1000, description="Random blood glucose in mg/dL")
     egfr: Optional[float] = Field(None, ge=0, le=200, description="Estimated glomerular filtration rate")
     ketonuria: Optional[bool] = None
     urine_protein: Optional[float] = Field(None, ge=0, description="Urine protein level")

@@ -14,32 +14,17 @@ import com.rwanda.health.cds.models.PatientDemographics
 
 // =============================================
 // DIABETES DIAGNOSIS AND CLASSIFICATION RULES
-// (unchanged logic; phrasing left intact)
+// NOTE: In Rwanda, HbA1c is often unavailable or done later.
+// Therefore, primary diagnosis is based on plasma glucose (fasting/random),
+// and HbA1c is treated as a secondary/confirmatory pathway.
 // =============================================
 
-// Rule 1: Diabetes Diagnosis by HbA1c (Highest Priority)
-rule "Diabetes Diagnosis by HbA1c"
+// Rule 1: Diabetes Diagnosis by Fasting Glucose (Primary in low-resource settings)
+rule "Diabetes Diagnosis by Fasting Glucose"
     salience 100
     when
         $patient: PatientData(
-            investigations.hba1c >= 6.5
-        )
-    then
-        ClinicalDecision decision = new ClinicalDecision();
-        decision.setDiagnosis("Diabetes Mellitus");
-        decision.setStage("Confirmed by HbA1c");
-        decision.setPatientAdvice("Diabetes confirmed. Requires comprehensive management including lifestyle modifications and pharmacological treatment.");
-        decision.setConfidenceLevel("HIGH");
-        $patient.addDecision(decision);
-        System.out.println("Applied rule: Diabetes Diagnosis by HbA1c");
-end
-
-// Rule 2: Diabetes Diagnosis by Fasting Glucose
-rule "Diabetes Diagnosis by Fasting Glucose"
-    salience 95
-    when
-        $patient: PatientData(
-            investigations.fastingGlucose >= 7.0
+            investigations.fastingGlucose >= 126.0
         )
         not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
@@ -49,15 +34,15 @@ rule "Diabetes Diagnosis by Fasting Glucose"
         decision.setPatientAdvice("Diabetes confirmed by fasting glucose. Requires immediate lifestyle intervention and medication.");
         decision.setConfidenceLevel("HIGH");
         $patient.addDecision(decision);
-        System.out.println("Applied rule: Diabetes Diagnosis by Fasting Glucose");
+        System.out.println("Applied rule: Diabetes Diagnosis by Fasting Glucose (primary)");
 end
 
-// Rule 3: Diabetes Diagnosis by Random Glucose with Symptoms
+// Rule 2: Diabetes Diagnosis by Random Glucose with Symptoms (also primary)
 rule "Diabetes Diagnosis by Random Glucose with Symptoms"
-    salience 90
+    salience 95
     when
         $patient: PatientData(
-            investigations.randomGlucose >= 11.1,
+            investigations.randomGlucose >= 200.0,
             medicalHistory.diabetesSymptoms == true
         )
         not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
@@ -68,7 +53,25 @@ rule "Diabetes Diagnosis by Random Glucose with Symptoms"
         decision.setPatientAdvice("Diabetes confirmed. Symptoms include polyuria, polydipsia, weight loss, blurred vision.");
         decision.setConfidenceLevel("HIGH");
         $patient.addDecision(decision);
-        System.out.println("Applied rule: Diabetes Diagnosis by Random Glucose with Symptoms");
+        System.out.println("Applied rule: Diabetes Diagnosis by Random Glucose with Symptoms (primary)");
+end
+
+// Rule 3: Diabetes Diagnosis by HbA1c (Secondary / confirmatory if available)
+rule "Diabetes Diagnosis by HbA1c"
+    salience 90
+    when
+        $patient: PatientData(
+            investigations.hba1c >= 6.5
+        )
+        not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+    then
+        ClinicalDecision decision = new ClinicalDecision();
+        decision.setDiagnosis("Diabetes Mellitus");
+        decision.setStage("Confirmed by HbA1c (secondary)");
+        decision.setPatientAdvice("Diabetes confirmed by HbA1c. Requires comprehensive management including lifestyle modifications and pharmacological treatment.");
+        decision.setConfidenceLevel("HIGH");
+        $patient.addDecision(decision);
+        System.out.println("Applied rule: Diabetes Diagnosis by HbA1c (secondary)");
 end
 
 // Rule 4: Prediabetes Identification
@@ -77,7 +80,7 @@ rule "Prediabetes Identification"
     when
         $patient: PatientData(
             (investigations.hba1c >= 5.7 && investigations.hba1c < 6.5) ||
-            (investigations.fastingGlucose >= 5.6 && investigations.fastingGlucose < 7.0)
+            (investigations.fastingGlucose >= 100.0 && investigations.fastingGlucose < 126.0)
         )
         not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
@@ -128,35 +131,35 @@ end
 // Clarified OR vs AND and explicit dual therapy rules
 // =============================================
 
-// NEW RULE: At diagnosis - Consider Dual Therapy if HbA1c >= 9% (explicit per guideline)
-rule "At Diagnosis - Start Dual Therapy if HbA1c >= 9%"
+// NEW RULE: At diagnosis - Consider Dual Therapy if random glucose 212-300 mg/dL (when HbA1c often unavailable)
+rule "At Diagnosis - Start Dual Therapy if Random Glucose 212-300 mg/dL"
     salience 92
     when
         $patient: PatientData(
-            investigations.hba1c >= 9.0
+            investigations.randomGlucose >= 212.0 && investigations.randomGlucose < 300.0
         )
         not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         // If diabetes not yet captured by other diagnosis rules, create a decision indicating dual therapy need at diagnosis.
         ClinicalDecision decision = new ClinicalDecision();
         decision.setDiagnosis("Diabetes Mellitus");
-        decision.setStage("At diagnosis - Indication for Dual Therapy");
+        decision.setStage("At diagnosis - Indication for Dual Therapy (random glucose 212-300 mg/dL)");
         // Explicit instruction: start Metformin AND add a second agent (AND). Options for second agent are separated by OR.
-        decision.setPatientAdvice("At diagnosis with HbA1c ≥9%: initiate DUAL THERAPY now. Start METFORMIN AND add ONE of: Sulfonylurea (Gliclazide) OR DPP4 inhibitor OR SGLT2 inhibitor. Reassess HbA1c in 3 months.");
+        decision.setPatientAdvice("At diagnosis with random glucose between 212-300 mg/dL: initiate DUAL THERAPY now. Start METFORMIN AND add ONE of: Sulfonylurea (Gliclazide) OR DPP4 inhibitor OR SGLT2 inhibitor. Reassess glucose control in 3 months.");
         decision.addMedication("Metformin (start) 500mg daily for 5 days then 500mg twice daily (titrate as tolerated)");
         decision.addMedication("AND add ONE of: Sulfonylurea (Gliclazide) 30-120mg OD/BD  OR  Glimepiride 1-8mg OD  OR  DPP4 inhibitor (Vildagliptin/Sitagliptin)  OR  SGLT2 inhibitor (Dapagliflozin)");
-        decision.addTest("HbA1c in 3 months");
+        decision.addTest("Repeat glucose (or HbA1c if available) in 3 months");
         decision.setConfidenceLevel("HIGH");
         $patient.addDecision(decision);
-        System.out.println("Applied rule: At Diagnosis - Start Dual Therapy if HbA1c >= 9%");
+        System.out.println("Applied rule: At Diagnosis - Start Dual Therapy if Random Glucose 212-300 mg/dL");
 end
 
-// Rule 7: Poor Glycemic Control - Needs Dual Therapy (HbA1c >=9%)  -- clarified AND/OR
-rule "Poor Glycemic Control HbA1c >=9%"
+// Rule 7: Poor Glycemic Control - Needs Dual Therapy (random glucose 212-300 mg/dL)  -- clarified AND/OR
+rule "Poor Glycemic Control Random Glucose 212-300 mg/dL"
     salience 70
     when
         $patient: PatientData(
-            investigations.hba1c >= 9.0
+            investigations.randomGlucose >= 212.0 && investigations.randomGlucose < 300.0
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
     then
@@ -168,7 +171,7 @@ rule "Poor Glycemic Control HbA1c >=9%"
         $decision.addMedication("Combination semantics: (METFORMIN) AND (SULFONYLUREA OR DPP4i OR SGLT2i)  -- dual therapy (both agents given together).");
 
         String currentAdvice = $decision.getPatientAdvice();
-        String advice = "POOR GLYCEMIC CONTROL (HbA1c ≥9%): Initiate DUAL THERAPY = Metformin AND a second agent. Choose partner based on patient profile: Sulfonylurea (first choice) OR DPP4i OR SGLT2i.";
+        String advice = "POOR GLYCEMIC CONTROL (random glucose 212-300 mg/dL): Initiate DUAL THERAPY = Metformin AND a second agent. Choose partner based on patient profile: Sulfonylurea (first choice) OR DPP4i OR SGLT2i.";
         if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
             $decision.setPatientAdvice(currentAdvice + " " + advice);
         } else {
@@ -178,12 +181,12 @@ rule "Poor Glycemic Control HbA1c >=9%"
         System.out.println("Applied rule: Poor Glycemic Control HbA1c >=9%");
 end
 
-// Rule 8: Very Poor Control - Consider Insulin (>=10%) - clarify combinations AND/OR
-rule "Very Poor Glycemic Control HbA1c >=10%"
+// Rule 8: Very Poor Control - Consider Insulin (random glucose ≥300 mg/dL) - clarify combinations AND/OR
+rule "Very Poor Glycemic Control Random Glucose >=300 mg/dL"
     salience 65
     when
         $patient: PatientData(
-            investigations.hba1c >= 10.0 || investigations.randomGlucose >= 16.7
+            investigations.randomGlucose >= 300.0
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
     then
@@ -194,7 +197,7 @@ rule "Very Poor Glycemic Control HbA1c >=10%"
         $decision.addMedication("Total daily insulin dose guidance: ~0.5 U/kg (individualize).");
 
         String currentAdvice = $decision.getPatientAdvice();
-        String advice = "VERY POOR CONTROL (HbA1c ≥10% or marked symptoms): Consider insulin initiation. Use Metformin AND insulin where appropriate, or insulin-based regimen if severe. Refer if initiation/education needed.";
+        String advice = "VERY POOR CONTROL (random glucose ≥300 mg/dL or marked symptoms): Consider insulin initiation. Use Metformin AND insulin where appropriate, or insulin-based regimen if severe. Refer if initiation/education needed.";
         if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
             $decision.setPatientAdvice(currentAdvice + " " + advice);
         } else {
@@ -207,12 +210,12 @@ rule "Very Poor Glycemic Control HbA1c >=10%"
         System.out.println("Applied rule: Very Poor Glycemic Control HbA1c >=10%");
 end
 
-// Rule 9: Moderate Control - Monotherapy (HbA1c <9% at diagnosis) - explicit MONOTHERAPY
-rule "Moderate Glycemic Control HbA1c <9%"
+// Rule 9: Moderate Control - Monotherapy (random glucose 126-212 mg/dL at diagnosis) - explicit MONOTHERAPY
+rule "Moderate Glycemic Control Random Glucose 126-212 mg/dL"
     salience 60
     when
         $patient: PatientData(
-            investigations.hba1c < 9.0 && investigations.hba1c >= 6.5
+            investigations.randomGlucose >= 126.0 && investigations.randomGlucose < 212.0
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
     then
@@ -222,7 +225,7 @@ rule "Moderate Glycemic Control HbA1c <9%"
         $decision.addMedication("Maximum usual oral metformin dose: up to 1000mg twice daily if tolerated");
 
         String currentAdvice = $decision.getPatientAdvice();
-        String advice = "HbA1c <9% at diagnosis: start METFORMIN MONOTHERAPY. Reassess HbA1c in 3 months and consider DUAL THERAPY if not at target.";
+        String advice = "Random glucose 126-212 mg/dL at diagnosis: start METFORMIN MONOTHERAPY. Reassess glucose (or HbA1c if available) in 3 months and consider DUAL THERAPY if not at target.";
         if(currentAdvice != null && !currentAdvice.trim().isEmpty()) {
             $decision.setPatientAdvice(currentAdvice + " " + advice);
         } else {
@@ -232,13 +235,14 @@ rule "Moderate Glycemic Control HbA1c <9%"
         System.out.println("Applied rule: Moderate Glycemic Control HbA1c <9%");
 end
 
-// Rule 10: Treatment Failure - Add second agent or escalate (after 3 months on max tolerated metformin)
+// Rule 10: Treatment Failure - Add second agent or escalate (after 3 months on max tolerated metformin), using glucose when HbA1c is unavailable
 rule "Treatment Failure After 3 Months"
     salience 55
     when
         $patient: PatientData(
             medicalHistory.currentMedications contains "Metformin",
-            investigations.hba1c >= 7.0,
+            // Approximate HbA1c ≥7% using random glucose ≥154 mg/dL when HbA1c often unavailable
+            investigations.randomGlucose >= 154.0,
             medicalHistory.treatmentDuration >= 3
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
@@ -501,7 +505,7 @@ end
 rule "DKA Suspicion"
     when
         $patient: PatientData(
-            (investigations.bloodGlucose > 13.9 || investigations.ketonuria == true) &&
+            (investigations.randomGlucose > 250.0 || investigations.ketonuria == true) &&
             (medicalHistory.abdominalPain == true || medicalHistory.nauseaVomiting == true ||
              medicalHistory.dehydration == true || medicalHistory.rapidBreathing == true)
         )
@@ -519,8 +523,8 @@ end
 rule "Hyperglycemic Emergency Transfer"
     when
         $patient: PatientData(
-            investigations.bloodGlucose > 22.2 || // >400 mg/dl
-            (investigations.bloodGlucose >= 11.1 && investigations.bloodGlucose <= 22.2 &&
+            investigations.randomGlucose > 400.0 || // >400 mg/dL
+            (investigations.randomGlucose >= 200.0 && investigations.randomGlucose <= 400.0 &&
              medicalHistory.dangerSigns == true)
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()

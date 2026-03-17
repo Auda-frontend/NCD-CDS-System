@@ -65,7 +65,6 @@ const initialState = {
     hba1c: null,
     fasting_glucose: null,
     random_glucose: null,
-    blood_glucose: null,
     egfr: null,
     ketonuria: false,
     urine_protein: null,
@@ -593,9 +592,8 @@ const VisitForm = ({ visit, patients, onSubmit, onCancel }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { field: 'hba1c', label: 'HbA1c (%)', placeholder: '5.6', step: '0.1' },
-            { field: 'fasting_glucose', label: 'Fasting Glucose (mmol/L)', placeholder: '5.6', step: '0.1' },
-            { field: 'random_glucose', label: 'Random Glucose (mmol/L)', placeholder: '7.8', step: '0.1' },
-            { field: 'blood_glucose', label: 'Blood Glucose (mmol/L)', placeholder: '6.5', step: '0.1' },
+            { field: 'fasting_glucose', label: 'Fasting Glucose (mg/dL)', placeholder: '100', step: '1' },
+            { field: 'random_glucose', label: 'Random Glucose (mg/dL)', placeholder: '140', step: '1' },
             { field: 'urine_protein', label: 'Urine Protein', placeholder: '0.0', step: '0.1' },
             { field: 'serum_creatinine', label: 'Serum Creatinine (mmol/L)', placeholder: '0.8', step: '0.1' },
             { field: 'ldl_cholesterol', label: 'LDL Cholesterol (mmol/L)', placeholder: '2.6', step: '0.1' }

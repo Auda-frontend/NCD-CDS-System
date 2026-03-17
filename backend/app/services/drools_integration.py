@@ -114,7 +114,6 @@ class DroolsIntegrationService:
                 "hba1c": patient_data.investigations.hba1c,
                 "fastingGlucose": patient_data.investigations.fasting_glucose,
                 "randomGlucose": patient_data.investigations.random_glucose,
-                "bloodGlucose": patient_data.investigations.blood_glucose,
                 "egfr": patient_data.investigations.egfr,
                 "ketonuria": patient_data.investigations.ketonuria,
                 "urineProtein": patient_data.investigations.urine_protein,
