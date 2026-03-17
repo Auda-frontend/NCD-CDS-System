@@ -1,0 +1,81 @@
+############################
+# OS / Editor
+############################
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+.idea/
+.vscode/
+*.iml
+
+############################
+# Python
+############################
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+*.log
+
+# Environments
+.env
+.env.*
+!.env.example
+
+venv/
+.venv/
+env/
+.envrc
+
+# Project-specific virtualenv location
+backend/venv/
+backend/.venv/
+
+############################
+# Node / Frontend
+############################
+node_modules/
+dist/
+build/
+.vite/
+.next/
+.nuxt/
+coverage/
+
+############################
+# Java / Drools / Maven
+############################
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+############################
+# Jupyter
+############################
+.ipynb_checkpoints/
+
+############################
+# Data / Secrets / Large artifacts (keep out of git)
+############################
+*.pkl
+*.joblib
+*.onnx
+*.pt
+*.pth
+*.ckpt
+
+############################
+# Local DB / runtime
+############################
+*.sqlite
+*.db
+*.db-journal
