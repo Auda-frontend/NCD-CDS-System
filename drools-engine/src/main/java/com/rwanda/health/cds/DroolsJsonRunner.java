@@ -140,6 +140,11 @@ public class DroolsJsonRunner {
                 physicalExam.setDiastole(((Number) diastole).doubleValue());
             }
 
+            Object respirationRate = physMap.get("respirationRate");
+            if (respirationRate != null) {
+                physicalExam.setRespirationRate(((Number) respirationRate).doubleValue());
+            }
+
             physicalExam.setBpStatus((String) physMap.get("bpStatus"));
 
             // Add other fields as needed...

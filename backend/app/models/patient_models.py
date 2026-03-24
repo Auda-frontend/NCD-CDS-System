@@ -97,6 +97,7 @@ class PhysicalExamination(BaseModel):
     bmi: Optional[float] = Field(None, ge=0, le=100, description="Body Mass Index")
     bmi_status: Optional[str] = None
     pulse: Optional[float] = Field(None, ge=0, le=300, description="Pulse rate in BPM")
+    respiration_rate: Optional[float] = Field(None, ge=0, le=80, description="Respiration rate in breaths per minute")
     temperature: Optional[float] = Field(None, ge=20, le=45, description="Temperature in Celsius")
     spO2: Optional[float] = Field(None, ge=0, le=100, description="Oxygen saturation percentage")
     pain_score: Optional[int] = Field(None, ge=0, le=10, description="Pain score from 0-10")
@@ -108,8 +109,8 @@ class Investigations(BaseModel):
     egfr: Optional[float] = Field(None, ge=0, le=200, description="Estimated glomerular filtration rate")
     ketonuria: Optional[bool] = None
     urine_protein: Optional[float] = Field(None, ge=0, description="Urine protein level")
-    serum_creatinine: float = Field(None, ge=0, description="Serum creatinine level")
-    ldl_cholesterol: Optional[float] = Field(None, ge=0, description="LDL cholesterol level")
+    serum_creatinine: Optional[float] = Field(None, ge=0, description="Serum creatinine level in mg/dL")
+    ldl_cholesterol: Optional[float] = Field(None, ge=0, description="LDL cholesterol level in mg/dL")
     additional_tests: List[str] = []
 
     @field_validator("urine_protein", mode="before")

@@ -46,6 +46,7 @@ async def save_recommendations(
         risk_classification=risk_classification,
         notes=notes,
         source=source,
+        decisions=decisions or None,
         explanations=explanations,
     )
     return await cds_crud.create_recommendation(db, payload)

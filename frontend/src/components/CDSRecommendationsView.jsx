@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import CDSRecommendationsList from './CDSRecommendationsList';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -9,6 +9,8 @@ const CDSRecommendationsView = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedVisit, setSelectedVisit] = useState(null);
+  const [explanationsNotice, setExplanationsNotice] = useState('');
+  const prevPendingRef = useRef(false);
 
   useEffect(() => {
     loadVisits();
@@ -58,6 +60,36 @@ const CDSRecommendationsView = () => {
     }
   };
 
+  const aiPending = useMemo(() => {
+    return (recommendations || []).some(
+      (rec) => Array.isArray(rec.explanations) && rec.explanations.length === 0
+    );
+  }, [recommendations]);
+
+  const aiReady = useMemo(() => {
+    return (recommendations || []).some(
+      (rec) => Array.isArray(rec.explanations) && rec.explanations.length > 0
+    );
+  }, [recommendations]);
+
+  useEffect(() => {
+    if (aiPending) {
+      setExplanationsNotice('AI explanations are being prepared in the background. You can continue with other tasks (appointments, prescriptions, tests) meanwhile.');
+    }
+    if (prevPendingRef.current && !aiPending && aiReady) {
+      setExplanationsNotice('AI explanations are now ready for this visit.');
+    }
+    prevPendingRef.current = aiPending;
+  }, [aiPending, aiReady]);
+
+  useEffect(() => {
+    if (!selectedVisit?.id || !aiPending) return;
+    const intervalId = setInterval(() => {
+      loadRecommendations(selectedVisit.id);
+    }, 8000);
+    return () => clearInterval(intervalId);
+  }, [selectedVisit?.id, aiPending]);
+
   const handleVisitSelect = (visit) => {
     setSelectedVisit(visit);
   };
@@ -76,6 +108,11 @@ const CDSRecommendationsView = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">CDS Recommendations</h1>
       </div>
+      {explanationsNotice && (
+        <div className="mb-4 p-3 rounded-md border border-blue-200 bg-blue-50 text-sm text-blue-900">
+          {explanationsNotice}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Visit Selection */}
@@ -133,6 +170,7 @@ const CDSRecommendationsView = () => {
               visit={selectedVisit}
               patient={getPatientDetails(selectedVisit.patient_id)}
               onRefresh={() => loadRecommendations(selectedVisit.id)}
+              aiPending={aiPending}
             />
           ) : (
             <div className="bg-white rounded-lg shadow p-12 text-center">

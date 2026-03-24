@@ -21,6 +21,7 @@ class CDSRecommendation(Base):
     risk_classification = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     source = Column(String, nullable=True)  # e.g., drools version or rule set
+    decisions = Column(JSON, nullable=True)  # original Drools decision objects
     explanations = Column(JSON, nullable=True)  # list of AI explanation objects per decision
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

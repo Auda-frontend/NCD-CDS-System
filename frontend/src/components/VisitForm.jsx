@@ -1,4 +1,5 @@
 import React, { useReducer, useCallback, memo, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -57,6 +58,7 @@ const initialState = {
     height: null,
     weight: null,
     pulse: null,
+    respiration_rate: null,
     temperature: null,
     spO2: null,
     pain_score: null
@@ -103,6 +105,7 @@ const FormSection = memo(({ title, children }) => (
 ));
 
 const VisitForm = ({ visit, patients, onSubmit, onCancel }) => {
+  const navigate = useNavigate();
   const [formData, dispatch] = useReducer(reducer, initialState);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [patientDemographics, setPatientDemographics] = useState(null);
@@ -288,9 +291,15 @@ const VisitForm = ({ visit, patients, onSubmit, onCancel }) => {
 
       if (response.ok) {
         const result = await response.json();
-        alert(`Recommendations generated successfully! Visit the CDS Recommendations page to view them.`);
-        // Optionally redirect to recommendations page
-        window.location.href = '/recommendations';
+        const aiStatus = result?.ai_explanations_status;
+        if (aiStatus === 'pending') {
+          alert('Recommendations generated. AI explanations are being prepared in the background and will appear shortly on the CDS Recommendations page.');
+        } else if (aiStatus === 'ready') {
+          alert('Recommendations and AI explanations are ready. Visit the CDS Recommendations page to view them.');
+        } else {
+          alert('Recommendations generated successfully! Visit the CDS Recommendations page to view them.');
+        }
+        navigate('/cds-recommendations');
       } else {
         const errorData = await response.json().catch(() => ({ detail: response.statusText }));
         alert(`Failed to get recommendations: ${errorData.detail || response.statusText}`);
@@ -553,6 +562,7 @@ const VisitForm = ({ visit, patients, onSubmit, onCancel }) => {
             { field: 'height', label: 'Height (cm)', placeholder: '170' },
             { field: 'weight', label: 'Weight (kg)', placeholder: '70' },
             { field: 'pulse', label: 'Pulse (bpm)', placeholder: '72' },
+            { field: 'respiration_rate', label: 'Respiration Rate (breaths/min) *', placeholder: '16', step: '1', min: 0, max: 80 },
             { field: 'temperature', label: 'Temperature (°C)', placeholder: '37.0', step: '0.1' },
             { field: 'spO2', label: 'SpO2 (%)', placeholder: '98' },
             { field: 'pain_score', label: 'Pain Score (0-10)', placeholder: '0', step: '1', min: 0, max: 10 }
@@ -568,7 +578,7 @@ const VisitForm = ({ visit, patients, onSubmit, onCancel }) => {
                 onChange={(e) => handleNumberChange('physical_examination', field, e.target.value)}
                 onKeyDown={preventInvalidNumber}
                 placeholder={placeholder}
-                required={field === 'systole' || field === 'diastole'}
+                required={field === 'systole' || field === 'diastole' || field === 'respiration_rate'}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -591,12 +601,12 @@ const VisitForm = ({ visit, patients, onSubmit, onCancel }) => {
       <FormSection title="Laboratory Investigations">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { field: 'hba1c', label: 'HbA1c (%)', placeholder: '5.6', step: '0.1' },
+            { field: 'hba1c', label: 'HbA1c (%) (optional)', placeholder: '5.6', step: '0.1' },
             { field: 'fasting_glucose', label: 'Fasting Glucose (mg/dL)', placeholder: '100', step: '1' },
             { field: 'random_glucose', label: 'Random Glucose (mg/dL)', placeholder: '140', step: '1' },
             { field: 'urine_protein', label: 'Urine Protein', placeholder: '0.0', step: '0.1' },
-            { field: 'serum_creatinine', label: 'Serum Creatinine (mmol/L)', placeholder: '0.8', step: '0.1' },
-            { field: 'ldl_cholesterol', label: 'LDL Cholesterol (mmol/L)', placeholder: '2.6', step: '0.1' }
+            { field: 'serum_creatinine', label: 'Serum Creatinine (mg/dL)', placeholder: '0.8', step: '0.1' },
+            { field: 'ldl_cholesterol', label: 'LDL Cholesterol (mg/dL)', placeholder: '2.6', step: '0.1' }
           ].map(({ field, label, placeholder, step }) => (
             <div key={field}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -695,7 +705,7 @@ const VisitForm = ({ visit, patients, onSubmit, onCancel }) => {
       </div>
 
       <p className="text-xs text-gray-500 text-center">
-        * Required fields: Patient, Visit Date, Consultation Type, Chief Complaint, Systolic and Diastolic Blood Pressure
+        * Required fields: Patient, Visit Date, Consultation Type, Chief Complaint, Systolic/Diastolic BP, and Respiration Rate
       </p>
     </form>
   );

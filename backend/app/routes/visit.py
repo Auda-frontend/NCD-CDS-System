@@ -3,15 +3,17 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
+import asyncio
 from ..schemas.visit import VisitCreate, VisitUpdate, VisitOut
 from ..crud import visit as visit_crud
 from ..crud import patient as patient_crud
 from ..crud import test_result as test_crud
+from ..crud import cds_recommendation as recommendation_crud
 from ..services.drools_integration import DroolsIntegrationService
 from ..services import cds_recommendation_service
 from ..models import patient_models
-from database.models import Visit
-from database.session import get_db
+from database.models import Visit, CDSRecommendation
+from database.session import get_db, async_session
 from datetime import datetime, date
 from sqlalchemy import update as sa_update
 
@@ -207,6 +209,81 @@ def _decision_to_dict_for_llm(d):
     }
 
 
+def _build_patient_context(patient_data):
+    return {
+        "age": patient_data.demographics.age or 0,
+        "gender": getattr(patient_data.demographics.gender, "value", str(patient_data.demographics.gender)),
+        "systolic": patient_data.physical_examination.systole or 0,
+        "diastolic": patient_data.physical_examination.diastole or 0,
+    }
+
+
+def _generate_explanations_sync(decisions, patient_ctx, logger):
+    """
+    Generate AI explanations synchronously (blocking).
+    Returns list aligned by decisions index.
+    """
+    import os
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    import sys
+    if backend_dir not in sys.path:
+        sys.path.insert(0, backend_dir)
+    import llm_service
+
+    explanations_payload = []
+    logger.info("AI explanation generation started for %s decision(s)", len(decisions or []))
+    for d in decisions:
+        try:
+            raw = llm_service.generate_explanation(_decision_to_dict_for_llm(d), patient_ctx)
+            explanations_payload.append({
+                "clinician_summary": raw.get("clinician_summary") or "",
+                "clinician_explanation": raw.get("clinician_explanation") or "",
+                "patient_summary": raw.get("patient_summary") or "",
+                "patient_explanation": raw.get("patient_explanation") or "",
+                "sources": raw.get("sources") or [],
+            })
+        except Exception as e:
+            logger.warning("AI explanation failed for one decision: %s", e)
+            explanations_payload.append(None)
+    logger.info("AI explanation generation finished")
+    return explanations_payload
+
+
+async def _run_async_ai_for_recommendation(recommendation_id: str, decisions, patient_ctx):
+    """
+    Background AI generation so clinicians can continue workflow immediately.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        logger.info("AI async job started for recommendation %s", recommendation_id)
+        explanations_payload = _generate_explanations_sync(decisions, patient_ctx, logger)
+        async with async_session() as bg_db:
+            await bg_db.execute(
+                sa_update(CDSRecommendation)
+                .where(CDSRecommendation.id == recommendation_id)
+                .values(explanations=explanations_payload)
+            )
+            await bg_db.commit()
+        logger.info("AI async job completed for recommendation %s", recommendation_id)
+    except Exception as e:
+        logger.warning("Background AI explanation job failed for recommendation %s: %s", recommendation_id, e)
+        try:
+            async with async_session() as bg_db:
+                rec = await recommendation_crud.get_recommendation(bg_db, recommendation_id)
+                if rec:
+                    # Keep payload as [] to indicate pending/failed and avoid blocking user workflow.
+                    # Frontend can show a retry action in future iterations.
+                    await bg_db.execute(
+                        sa_update(CDSRecommendation)
+                        .where(CDSRecommendation.id == recommendation_id)
+                        .values(explanations=[])
+                    )
+                    await bg_db.commit()
+        except Exception:
+            pass
+
+
 @router.post("/{visit_id}/cds-evaluate", response_model=dict)
 async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
     import os
@@ -223,40 +300,24 @@ async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
     decisions = _dict_from_decisions(response.clinical_decisions)
 
     # AI explanations can be very slow (external LLM + RAG).
-    # To keep the "Get Recommendations" UX under ~15s, we make them optional here.
+    # Keep Drools immediate and run AI in background by default when enabled.
     explanations_payload = None
     enable_ai = os.getenv("ENABLE_AI_EXPLANATION", "").strip().lower() == "true"
     enable_sync_visit_ai = os.getenv("ENABLE_SYNC_VISIT_AI", "false").strip().lower() == "true"
+    ai_status = "disabled"
+    patient_ctx = _build_patient_context(patient_data)
 
     if enable_ai and enable_sync_visit_ai and decisions:
         try:
-            backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            import sys
-            if backend_dir not in sys.path:
-                sys.path.insert(0, backend_dir)
-            import llm_service
-            patient_ctx = {
-                "age": patient_data.demographics.age or 0,
-                "gender": getattr(patient_data.demographics.gender, "value", str(patient_data.demographics.gender)),
-                "systolic": patient_data.physical_examination.systole or 0,
-                "diastolic": patient_data.physical_examination.diastole or 0,
-            }
-            explanations_payload = []
-            for d in decisions:
-                try:
-                    raw = llm_service.generate_explanation(_decision_to_dict_for_llm(d), patient_ctx)
-                    explanations_payload.append({
-                        "clinician_summary": raw.get("clinician_summary") or "",
-                        "clinician_explanation": raw.get("clinician_explanation") or "",
-                        "patient_summary": raw.get("patient_summary") or "",
-                        "patient_explanation": raw.get("patient_explanation") or "",
-                        "sources": raw.get("sources") or [],
-                    })
-                except Exception as e:
-                    logger.warning("AI explanation failed for one decision: %s", e)
-                    explanations_payload.append(None)
+            explanations_payload = _generate_explanations_sync(decisions, patient_ctx, logger)
+            ai_status = "ready"
         except Exception as e:
             logger.warning("AI explanation skipped in visit cds-evaluate: %s", e)
+            explanations_payload = []
+            ai_status = "pending"
+    elif enable_ai and decisions:
+        explanations_payload = []
+        ai_status = "pending"
 
     # Persist decisions and recommendation (including explanations when present)
     await db.execute(
@@ -277,6 +338,21 @@ async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
         explanations=explanations_payload,
     )
 
+    # Run AI explanations asynchronously unless explicitly forced sync.
+    if enable_ai and decisions and ai_status == "pending":
+        logger.info(
+            "Queueing async AI explanations for recommendation %s (visit %s)",
+            recommendation.id,
+            visit_obj.id,
+        )
+        asyncio.create_task(
+            _run_async_ai_for_recommendation(
+                recommendation_id=str(recommendation.id),
+                decisions=decisions,
+                patient_ctx=patient_ctx,
+            )
+        )
+
     return {
         "success": response.success,
         "message": response.message,
@@ -286,4 +362,5 @@ async def evaluate_visit_cds(visit_id: str, db: AsyncSession = Depends(get_db)):
         "visit_id": str(visit_obj.id),
         "patient_id": str(visit_obj.patient_id),
         "explanations": explanations_payload,
+        "ai_explanations_status": ai_status,
     }

@@ -24,12 +24,20 @@ async def get_recommendation(db: AsyncSession, recommendation_id: str):
 
 
 async def get_recommendations_by_visit(db: AsyncSession, visit_id: str):
-    result = await db.execute(select(CDSRecommendation).where(CDSRecommendation.visit_id == visit_id))
+    result = await db.execute(
+        select(CDSRecommendation)
+        .where(CDSRecommendation.visit_id == visit_id)
+        .order_by(CDSRecommendation.created_at.desc())
+    )
     return result.scalars().all()
 
 
 async def get_recommendations_by_patient(db: AsyncSession, patient_id: str):
-    result = await db.execute(select(CDSRecommendation).where(CDSRecommendation.patient_id == patient_id))
+    result = await db.execute(
+        select(CDSRecommendation)
+        .where(CDSRecommendation.patient_id == patient_id)
+        .order_by(CDSRecommendation.created_at.desc())
+    )
     return result.scalars().all()
 
 

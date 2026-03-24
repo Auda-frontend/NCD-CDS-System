@@ -102,6 +102,7 @@ class DroolsIntegrationService:
                 "bmi": patient_data.physical_examination.bmi,
                 "bmiStatus": patient_data.physical_examination.bmi_status,
                 "pulse": patient_data.physical_examination.pulse,
+                "respirationRate": patient_data.physical_examination.respiration_rate,
                 "temperature": patient_data.physical_examination.temperature,
                 "spO2": patient_data.physical_examination.spO2,
                 "painScore": patient_data.physical_examination.pain_score

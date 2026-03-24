@@ -32,6 +32,7 @@ class CDSRecommendationBase(BaseModel):
     risk_classification: Optional[str] = None
     notes: Optional[str] = None
     source: Optional[str] = None  # e.g., drools version
+    decisions: Optional[List[Dict[str, Any]]] = None  # original Drools decision objects
     explanations: Optional[List[Optional[Dict[str, Any]]]] = None  # AI explanations per decision
 
 

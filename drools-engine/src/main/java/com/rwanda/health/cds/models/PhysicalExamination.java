@@ -9,6 +9,7 @@ public class PhysicalExamination {
     private Double bmi;
     private String bmiStatus;
     private Double pulse;
+    private Double respirationRate;
     private Double temperature;
     private Double spO2;
     private Integer painScore;
@@ -45,6 +46,9 @@ public class PhysicalExamination {
     
     public Double getPulse() { return pulse; }
     public void setPulse(Double pulse) { this.pulse = pulse; }
+
+    public Double getRespirationRate() { return respirationRate; }
+    public void setRespirationRate(Double respirationRate) { this.respirationRate = respirationRate; }
     
     public Double getTemperature() { return temperature; }
     public void setTemperature(Double temperature) { this.temperature = temperature; }
