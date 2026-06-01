@@ -1,0 +1,19 @@
+{
+ "creation": "2026-05-19 14:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Page",
+ "modified": "2026-05-19 14:00:00.000000",
+ "module": "Healthcare",
+ "name": "department-queue",
+ "page_name": "department-queue",
+ "restrict_to_domain": "Healthcare",
+ "roles": [
+  {"role": "Healthcare Administrator"},
+  {"role": "Physician"},
+  {"role": "Nursing User"},
+  {"role": "System Manager"}
+ ],
+ "standard": "Yes",
+ "system_page": 0,
+ "title": "Department Queue"
+}

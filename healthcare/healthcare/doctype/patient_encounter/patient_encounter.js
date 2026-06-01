@@ -1,5 +1,6 @@
 // Copyright (c) 2016, ESS LLP and contributors
 // For license information, please see license.txt
+{% include 'healthcare/healthcare/doctype/patient_encounter/patient_encounter_rw_opd.js' %}
 
 frappe.ui.form.on('Patient Encounter', {
 	onload: function(frm) {

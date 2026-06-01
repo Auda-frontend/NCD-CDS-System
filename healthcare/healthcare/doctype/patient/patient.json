@@ -30,6 +30,9 @@
   "mobile",
   "phone",
   "email",
+  "occupation",
+  "column_break_25",
+  "marital_status",
   "invite_user",
   "user_id",
   "customer_details_section",
@@ -51,10 +54,6 @@
   "sb_relation",
   "patient_relation",
   "medical_history_tab",
-  "personal_and_social_history",
-  "occupation",
-  "column_break_25",
-  "marital_status",
   "allergy_medical_and_surgical_history",
   "allergies",
   "medication",
@@ -266,11 +265,6 @@
    "ignore_xss_filter": 1,
    "label": "Surgical History",
    "no_copy": 1
-  },
-  {
-   "fieldname": "personal_and_social_history",
-   "fieldtype": "Section Break",
-   "label": "Personal and Social History"
   },
   {
    "fieldname": "occupation",
@@ -591,7 +585,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2025-09-02 13:04:27.771400",
+ "modified": "2026-05-08 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

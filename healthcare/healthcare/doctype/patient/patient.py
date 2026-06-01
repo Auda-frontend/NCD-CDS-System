@@ -23,6 +23,7 @@ from healthcare.healthcare.doctype.healthcare_settings.healthcare_settings impor
 	get_receivable_account,
 	send_registration_sms,
 )
+from healthcare.healthcare.rwanda_registration import validate_rwanda_patient_registration
 
 
 class Patient(Document):
@@ -35,6 +36,7 @@ class Patient(Document):
 		self.set_full_name()
 		self.flags.is_new_doc = self.is_new()
 		self.flags.existing_customer = self.is_new() and bool(self.customer)
+		validate_rwanda_patient_registration(self)
 
 	def before_insert(self):
 		self.set_missing_customer_details()

@@ -1,9 +1,9 @@
 from . import __version__ as app_version  # noqa
 
 app_name = "healthcare"
-app_title = "Marley Health"
+app_title = "Rwanda EMR"
 app_publisher = "earthians Health Informatics Pvt. Ltd."
-app_description = "Modern, Open Source HIS built on Frappe and ERPNext"
+app_description = "Rwanda clinic EMR and hospital workflows — patient registration, OPD, and national identifiers — powered by Marley Health on Frappe and ERPNext"
 app_icon = "octicon octicon-file-directory"
 app_color = "grey"
 app_email = "info@earthianslive.com"
@@ -70,7 +70,7 @@ jinja = {
 # ------------
 
 # before_install = "healthcare.install.before_install"
-after_install = "healthcare.setup.setup_healthcare"
+after_install = "healthcare.hooks.run_after_install"
 
 # Uninstallation
 # ------------
@@ -124,7 +124,19 @@ doc_events = {
 		"on_trash": "healthcare.healthcare.utils.company_on_trash",
 	},
 	"Patient": {
-		"after_insert": "healthcare.regional.india.abdm.utils.set_consent_attachment_details"
+		"after_insert": "healthcare.regional.india.abdm.utils.set_consent_attachment_details",
+	},
+	"Patient Encounter": {
+		"validate": [
+			"healthcare.healthcare.rwanda_opd.validate_rwanda_opd_encounter",
+			"healthcare.healthcare.rwanda_consultation.validate_rwanda_consultation",
+		],
+		"before_submit": "healthcare.healthcare.rwanda_consultation.before_submit_rwanda_consultation",
+	},
+	"Vital Signs": {
+		"validate": "healthcare.healthcare.rwanda_opd.validate_rwanda_triage",
+		"after_insert": "healthcare.healthcare.rwanda_opd.on_triage_saved",
+		"on_update": "healthcare.healthcare.rwanda_opd.on_triage_saved",
 	},
 }
 
@@ -294,3 +306,16 @@ treeviews = [
 company_data_to_be_ignored = [
 	"Healthcare Service Unit",
 ]
+
+
+def run_after_install():
+	"""Run stock Marley setup, then Rwanda registration extensions."""
+	from healthcare.setup import setup_healthcare
+
+	setup_healthcare()
+
+	from healthcare.healthcare.rwanda_registration import install_rwanda_patient_registration
+	from healthcare.healthcare.rwanda_opd import install_rwanda_opd
+
+	install_rwanda_patient_registration()
+	install_rwanda_opd()

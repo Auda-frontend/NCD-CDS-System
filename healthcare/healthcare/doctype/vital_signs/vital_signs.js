@@ -1,5 +1,6 @@
 // Copyright (c) 2016, ESS LLP and contributors
 // For license information, please see license.txt
+{% include 'healthcare/healthcare/doctype/vital_signs/vital_signs_rw_triage.js' %}
 
 frappe.ui.form.on('Vital Signs', {
 	height: function(frm) {

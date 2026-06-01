@@ -105,7 +105,7 @@
   {
    "fieldname": "sb_vs",
    "fieldtype": "Section Break",
-   "label": "Vital Signs"
+   "label": "Triage"
   },
   {
    "description": "Presence of a fever (temp &gt; 38.5 \u00b0C/101.3 \u00b0F or sustained temp &gt; 38 \u00b0C/100.4 \u00b0F)",
@@ -256,7 +256,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2024-03-07 12:14:26.166928",
+ "modified": "2026-05-08 14:30:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Vital Signs",

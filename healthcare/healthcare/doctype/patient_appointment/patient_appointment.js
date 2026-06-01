@@ -1,5 +1,6 @@
 // Copyright (c) 2016, ESS LLP and contributors
 // For license information, please see license.txt
+{% include 'healthcare/healthcare/doctype/patient_appointment/patient_appointment_rw_opd.js' %}
 frappe.provide('erpnext.queries');
 frappe.ui.form.on('Patient Appointment', {
 	setup: function(frm) {
