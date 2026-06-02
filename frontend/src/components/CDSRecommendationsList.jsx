@@ -239,12 +239,29 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh, ai
   const recId = primaryRec?.id || 'rec';
   const primaryExplanationsPending =
     Array.isArray(primaryRec?.explanations) && primaryRec.explanations.length === 0;
+  const explanationReadyCount = Array.isArray(primaryRec?.explanations)
+    ? primaryRec.explanations.filter(
+        (expl) =>
+          !!(
+            expl &&
+            (
+              expl.clinician_summary ||
+              expl.clinician_explanation ||
+              expl.patient_summary ||
+              expl.patient_explanation ||
+              (Array.isArray(expl.sources) && expl.sources.length > 0)
+            )
+          )
+      ).length
+    : 0;
 
   const clinicalDecisions = useMemo(() => {
-    const raw = visit?.clinical_decisions;
+    const fromVisit = Array.isArray(visit?.clinical_decisions) ? visit.clinical_decisions : [];
+    const fromRecommendation = Array.isArray(primaryRec?.decisions) ? primaryRec.decisions : [];
+    const raw = fromVisit.length > 0 ? fromVisit : fromRecommendation;
     if (!Array.isArray(raw) || raw.length === 0) return [];
     return raw.map(normDecision).filter(Boolean);
-  }, [visit?.clinical_decisions]);
+  }, [visit?.clinical_decisions, primaryRec?.decisions]);
 
   const useGroupedByDiagnosis = clinicalDecisions.length > 0;
 
@@ -270,6 +287,8 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh, ai
       };
     });
   }, [useGroupedByDiagnosis, clinicalDecisions, recId]);
+  const showGroupedAiPendingBanner =
+    !!aiPending && decisionPanels.length > 0 && explanationReadyCount < decisionPanels.length;
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -609,11 +628,11 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh, ai
         {medLines.some((l) => l.kind === 'selectable') && (
           <div className="mb-4">
             <h4 className="text-md font-semibold text-gray-900 mb-2">Medications</h4>
-            <p className="text-xs text-gray-600 mb-3">
+            {/* <p className="text-xs text-gray-600 mb-3">
               Lines split by <strong>OR</strong> are separate options; choose the regimen you will use.
               Class names (e.g. ACE inhibitor) show examples below — select a specific drug per your
               formulary.
-            </p>
+            </p> */}
             <div className="space-y-3">
               {medLines.map((line, idx) => {
                 if (line.kind === 'note') {
@@ -686,7 +705,7 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh, ai
             {renderExplanationBlock(expl, decIdx, recommendation)}
           </div>
         )}
-        {!expl && primaryExplanationsPending && (
+        {!expl && showGroupedAiPendingBanner && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex items-center gap-3 text-sm text-blue-700">
               <span className="inline-block h-4 w-4 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
@@ -820,7 +839,9 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh, ai
           )}
         </div>
       )}
-      {Array.isArray(recommendation.explanations) && recommendation.explanations.length === 0 && (
+      {aiPending &&
+        Array.isArray(recommendation.explanations) &&
+        recommendation.explanations.length === 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="flex items-center gap-3 text-sm text-blue-700">
             <span className="inline-block h-4 w-4 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
@@ -929,7 +950,7 @@ const CDSRecommendationsList = ({ recommendations, visit, patient, onRefresh, ai
               engine (e.g. hypertension vs diabetes). Medications split on <strong>OR</strong> are alternative
               choices — select the line you will prescribe.
             </div>
-            {aiPending && (
+            {showGroupedAiPendingBanner && (
               <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-900 flex items-center gap-3">
                 <span className="inline-block h-4 w-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
                 <span>

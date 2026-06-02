@@ -15,6 +15,7 @@ from ..models.patient_models import (
     ExplainResponse,
 )
 from ..services.drools_integration import DroolsIntegrationService
+from ..services.eml_formulary_filter import filter_decisions_for_facility
 from database.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -137,41 +138,60 @@ async def evaluate_patient(request: CDSRequest, db: AsyncSession = Depends(get_d
     """
     try:
         response = drools_service.evaluate_patient(request.patient_data)
+        response.clinical_decisions, formulary_summary = filter_decisions_for_facility(
+            response.clinical_decisions or [], request.patient_data
+        )
 
         # AI explanation is additive — failure never blocks clinical decision
         explanations: List[Optional[AIExplanationOut]] = []
-        if response.clinical_decisions:
+        if response.success and response.clinical_decisions:
             explanations = _fetch_explanations_for_decisions(
                 response.clinical_decisions,
                 request.patient_data,
             )
 
-        # Save recommendations to database (including explanations when present)
-        from ..services import cds_recommendation_service
-        from ..crud import visit as visit_crud
-        decisions_dict = [d.dict() for d in (response.clinical_decisions or [])]
-        # Resolve patient_id from visit when possible (visit_id is required)
-        patient_id = request.patient_data.demographics.patient_id
-        if not patient_id:
-            visit_obj = await visit_crud.get_visit(db, request.visit_id)
-            if visit_obj:
-                patient_id = str(visit_obj.patient_id)
-        if not patient_id:
-            patient_id = ""  # may fail FK if not provided elsewhere
-        await cds_recommendation_service.save_recommendations(
-            db=db,
-            patient_id=patient_id,
-            visit_id=request.visit_id,
-            decisions=decisions_dict,
-            risk_classification=getattr(response, "risk_classification", None),
-            notes="Manual CDS evaluation",
-            source="DROOLS",
-            explanations=[e.dict() if e else None for e in explanations] if explanations else None,
-        )
+        if response.success and response.clinical_decisions:
+            # Save recommendations to database (including explanations when present)
+            from ..services import cds_recommendation_service
+            from ..crud import visit as visit_crud
+            decisions_dict = [d.dict() for d in (response.clinical_decisions or [])]
+            # Resolve patient_id from visit when possible (visit_id is required)
+            patient_id = request.patient_data.demographics.patient_id
+            if not patient_id:
+                visit_obj = await visit_crud.get_visit(db, request.visit_id)
+                if visit_obj:
+                    patient_id = str(visit_obj.patient_id)
+            if not patient_id:
+                patient_id = ""  # may fail FK if not provided elsewhere
+            await cds_recommendation_service.save_recommendations(
+                db=db,
+                patient_id=patient_id,
+                visit_id=request.visit_id,
+                decisions=decisions_dict,
+                risk_classification=getattr(response, "risk_classification", None),
+                notes=(
+                    "Manual CDS evaluation"
+                    f" | EML filter: {formulary_summary.get('filtered_count', 0)} option(s) filtered"
+                    f" at {formulary_summary.get('facility_level', 'unknown')}"
+                ),
+                source="DROOLS",
+                explanations=[e.dict() if e else None for e in explanations] if explanations else None,
+            )
+        else:
+            logger.warning(
+                "Skipping CDS recommendation persistence: success=%s decisions=%s visit_id=%s",
+                response.success,
+                len(response.clinical_decisions or []),
+                request.visit_id,
+            )
 
         return CDSResponse(
             success=response.success,
-            message=response.message,
+            message=(
+                f"{response.message} "
+                f"(EML filter at {formulary_summary.get('facility_level', 'unknown')}: "
+                f"{formulary_summary.get('filtered_count', 0)} option(s) removed)"
+            ),
             clinical_decisions=response.clinical_decisions,
             patient_data=response.patient_data,
             execution_time_ms=response.execution_time_ms,
@@ -189,6 +209,9 @@ async def evaluate_patient_direct(patient_data: PatientData):
     """
     try:
         response = drools_service.evaluate_patient(patient_data)
+        response.clinical_decisions, formulary_summary = filter_decisions_for_facility(
+            response.clinical_decisions or [], patient_data
+        )
 
         # AI explanation is additive — failure never blocks clinical decision
         explanations: List[Optional[AIExplanationOut]] = []
@@ -200,7 +223,11 @@ async def evaluate_patient_direct(patient_data: PatientData):
 
         return CDSResponse(
             success=response.success,
-            message=response.message,
+            message=(
+                f"{response.message} "
+                f"(EML filter at {formulary_summary.get('facility_level', 'unknown')}: "
+                f"{formulary_summary.get('filtered_count', 0)} option(s) removed)"
+            ),
             clinical_decisions=response.clinical_decisions,
             patient_data=response.patient_data,
             execution_time_ms=response.execution_time_ms,

@@ -12,6 +12,32 @@ import com.rwanda.health.cds.models.MedicalHistory
 import com.rwanda.health.cds.models.PhysicalExamination
 import com.rwanda.health.cds.models.PatientDemographics
 
+function void dmAddMedicationIfAbsent(ClinicalDecision decision, String medication) {
+    if (decision == null || medication == null || medication.trim().isEmpty()) return;
+    if (!decision.getMedications().contains(medication)) {
+        decision.addMedication(medication);
+    }
+}
+
+function void dmAddTestIfAbsent(ClinicalDecision decision, String testName) {
+    if (decision == null || testName == null || testName.trim().isEmpty()) return;
+    if (!decision.getTests().contains(testName)) {
+        decision.addTest(testName);
+    }
+}
+
+function void dmAppendAdvice(ClinicalDecision decision, String advice) {
+    if (decision == null || advice == null || advice.trim().isEmpty()) return;
+    String current = decision.getPatientAdvice();
+    if (current == null || current.trim().isEmpty()) {
+        decision.setPatientAdvice(advice);
+        return;
+    }
+    if (!current.contains(advice)) {
+        decision.setPatientAdvice(current + " " + advice);
+    }
+}
+
 // =============================================
 // DIABETES DIAGNOSIS AND CLASSIFICATION RULES
 // NOTE: In Rwanda, HbA1c is often unavailable or done later.
@@ -22,8 +48,10 @@ import com.rwanda.health.cds.models.PatientDemographics
 // Rule 1: Diabetes Diagnosis by Fasting Glucose (Primary in low-resource settings)
 rule "Diabetes Diagnosis by Fasting Glucose"
     salience 100
+    activation-group "diabetes-primary-diagnosis"
     when
         $patient: PatientData(
+            investigations != null,
             investigations.fastingGlucose >= 126.0
         )
         not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
@@ -40,8 +68,10 @@ end
 // Rule 2: Diabetes Diagnosis by Random Glucose with Symptoms (also primary)
 rule "Diabetes Diagnosis by Random Glucose with Symptoms"
     salience 95
+    activation-group "diabetes-primary-diagnosis"
     when
         $patient: PatientData(
+            investigations != null,
             investigations.randomGlucose >= 200.0,
             medicalHistory.diabetesSymptoms == true
         )
@@ -59,8 +89,10 @@ end
 // Rule 3: Diabetes Diagnosis by HbA1c (Secondary / confirmatory if available)
 rule "Diabetes Diagnosis by HbA1c"
     salience 90
+    activation-group "diabetes-primary-diagnosis"
     when
         $patient: PatientData(
+            investigations != null,
             investigations.hba1c >= 6.5
         )
         not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
@@ -77,8 +109,10 @@ end
 // Rule 4: Prediabetes Identification
 rule "Prediabetes Identification"
     salience 85
+    activation-group "diabetes-primary-diagnosis"
     when
         $patient: PatientData(
+            investigations != null,
             (investigations.hba1c >= 5.7 && investigations.hba1c < 6.5) ||
             (investigations.fastingGlucose >= 100.0 && investigations.fastingGlucose < 126.0)
         )
@@ -133,32 +167,34 @@ end
 
 // NEW RULE: At diagnosis - Consider Dual Therapy if random glucose 212-300 mg/dL (when HbA1c often unavailable)
 rule "At Diagnosis - Start Dual Therapy if Random Glucose 212-300 mg/dL"
-    salience 92
+    salience 75
+    activation-group "diabetes-glycemic-stage"
     when
         $patient: PatientData(
-            investigations.randomGlucose >= 212.0 && investigations.randomGlucose < 300.0
+            investigations != null,
+            investigations.randomGlucose >= 212.0 && investigations.randomGlucose < 300.0,
+            medicalHistory.currentMedications != null,
+            medicalHistory.currentMedications.size == 0,
+            (medicalHistory.treatmentDuration == null || medicalHistory.treatmentDuration < 1)
         )
-        not ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
+        $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
     then
-        // If diabetes not yet captured by other diagnosis rules, create a decision indicating dual therapy need at diagnosis.
-        ClinicalDecision decision = new ClinicalDecision();
-        decision.setDiagnosis("Diabetes Mellitus");
-        decision.setStage("At diagnosis - Indication for Dual Therapy (random glucose 212-300 mg/dL)");
-        // Explicit instruction: start Metformin AND add a second agent (AND). Options for second agent are separated by OR.
-        decision.setPatientAdvice("At diagnosis with random glucose between 212-300 mg/dL: initiate DUAL THERAPY now. Start METFORMIN AND add ONE of: Sulfonylurea (Gliclazide) OR DPP4 inhibitor OR SGLT2 inhibitor. Reassess glucose control in 3 months.");
-        decision.addMedication("Metformin (start) 500mg daily for 5 days then 500mg twice daily (titrate as tolerated)");
-        decision.addMedication("AND add ONE of: Sulfonylurea (Gliclazide) 30-120mg OD/BD  OR  Glimepiride 1-8mg OD  OR  DPP4 inhibitor (Vildagliptin/Sitagliptin)  OR  SGLT2 inhibitor (Dapagliflozin)");
-        decision.addTest("Repeat glucose (or HbA1c if available) in 3 months");
-        decision.setConfidenceLevel("HIGH");
-        $patient.addDecision(decision);
+        $decision.setStage("At diagnosis - Indication for Dual Therapy (random glucose 212-300 mg/dL)");
+        dmAppendAdvice($decision, "At diagnosis with random glucose between 212-300 mg/dL: initiate DUAL THERAPY now. Start METFORMIN AND add ONE of: Sulfonylurea (Gliclazide) OR DPP4 inhibitor OR SGLT2 inhibitor. Reassess glucose control in 3 months.");
+        dmAddMedicationIfAbsent($decision, "Metformin (start) 500mg daily for 5 days then 500mg twice daily (titrate as tolerated)");
+        dmAddMedicationIfAbsent($decision, "AND add ONE of: Sulfonylurea (Gliclazide) 30-120mg OD/BD  OR  Glimepiride 1-8mg OD  OR  DPP4 inhibitor (Vildagliptin)  OR  SGLT2 inhibitor (Dapagliflozin or Canagliflozin)");
+        dmAddTestIfAbsent($decision, "Repeat glucose (or HbA1c if available) in 3 months");
+        $decision.setConfidenceLevel("HIGH");
         System.out.println("Applied rule: At Diagnosis - Start Dual Therapy if Random Glucose 212-300 mg/dL");
 end
 
 // Rule 7: Poor Glycemic Control - Needs Dual Therapy (random glucose 212-300 mg/dL)  -- clarified AND/OR
 rule "Poor Glycemic Control Random Glucose 212-300 mg/dL"
     salience 70
+    activation-group "diabetes-glycemic-stage"
     when
         $patient: PatientData(
+            investigations != null,
             investigations.randomGlucose >= 212.0 && investigations.randomGlucose < 300.0
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
@@ -166,9 +202,9 @@ rule "Poor Glycemic Control Random Glucose 212-300 mg/dL"
         $decision.setStage("Poor Control - Needs Dual Therapy");
         // Explicit: Metformin AND add another agent. Partner choices are alternatives (OR).
         $decision.addMedication("Metformin (continue/start) 500mg daily x5 days then 500mg BD (titrate)");
-        $decision.addMedication("AND add ONE of (choose ONE): Sulfonylurea (Gliclazide - preferred) OR Glimepiride OR Glibenclamide (if indicated) OR DPP4 inhibitor OR SGLT2 inhibitor");
+        dmAddMedicationIfAbsent($decision, "AND add ONE of (choose ONE): Sulfonylurea (Gliclazide - preferred) OR Glimepiride OR Glibenclamide (if indicated) OR Vildagliptin OR SGLT2 inhibitor (Dapagliflozin or Canagliflozin)");
         // Provide clearer separate items for UI readability
-        $decision.addMedication("Combination semantics: (METFORMIN) AND (SULFONYLUREA OR DPP4i OR SGLT2i)  -- dual therapy (both agents given together).");
+        dmAddMedicationIfAbsent($decision, "Combination semantics: (METFORMIN) AND (SULFONYLUREA OR VILDAGLIPTIN OR SGLT2i)  -- dual therapy (both agents given together).");
 
         String currentAdvice = $decision.getPatientAdvice();
         String advice = "POOR GLYCEMIC CONTROL (random glucose 212-300 mg/dL): Initiate DUAL THERAPY = Metformin AND a second agent. Choose partner based on patient profile: Sulfonylurea (first choice) OR DPP4i OR SGLT2i.";
@@ -183,9 +219,11 @@ end
 
 // Rule 8: Very Poor Control - Consider Insulin (random glucose ≥300 mg/dL) - clarify combinations AND/OR
 rule "Very Poor Glycemic Control Random Glucose >=300 mg/dL"
-    salience 65
+    salience 95
+    activation-group "diabetes-glycemic-stage"
     when
         $patient: PatientData(
+            investigations != null,
             investigations.randomGlucose >= 300.0
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
@@ -213,8 +251,10 @@ end
 // Rule 9: Moderate Control - Monotherapy (random glucose 126-212 mg/dL at diagnosis) - explicit MONOTHERAPY
 rule "Moderate Glycemic Control Random Glucose 126-212 mg/dL"
     salience 60
+    activation-group "diabetes-glycemic-stage"
     when
         $patient: PatientData(
+            investigations != null,
             investigations.randomGlucose >= 126.0 && investigations.randomGlucose < 212.0
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
@@ -237,11 +277,13 @@ end
 
 // Rule 10: Treatment Failure - Add second agent or escalate (after 3 months on max tolerated metformin), using glucose when HbA1c is unavailable
 rule "Treatment Failure After 3 Months"
-    salience 55
+    salience 93
+    activation-group "diabetes-glycemic-stage"
     when
         $patient: PatientData(
             medicalHistory.currentMedications contains "Metformin",
             // Approximate HbA1c ≥7% using random glucose ≥154 mg/dL when HbA1c often unavailable
+            investigations != null,
             investigations.randomGlucose >= 154.0,
             medicalHistory.treatmentDuration >= 3
         )
@@ -249,8 +291,8 @@ rule "Treatment Failure After 3 Months"
     then
         $decision.setStage("Treatment Failure - Needs Intensification");
         // Clarify: add a second agent (AND). Multiple alternative second agents are given as OR.
-        $decision.addMedication("Add a SECOND agent (DUAL THERAPY): Metformin AND one of (Sulfonylurea (Gliclazide) OR DPP4 inhibitor OR SGLT2 inhibitor).");
-        $decision.addMedication("If already on dual therapy and still uncontrolled, consider TRIPLE THERAPY: Metformin AND Sulfonylurea AND (DPP4i OR SGLT2i) OR consider injectable therapy (insulin).");
+        dmAddMedicationIfAbsent($decision, "Add a SECOND agent (DUAL THERAPY): Metformin AND one of (Sulfonylurea (Gliclazide) OR Vildagliptin OR SGLT2 inhibitor (Dapagliflozin or Canagliflozin)).");
+        dmAddMedicationIfAbsent($decision, "If already on dual therapy and still uncontrolled, consider TRIPLE THERAPY: Metformin AND Sulfonylurea AND (Vildagliptin OR SGLT2i) OR consider injectable therapy (insulin).");
 
         String currentAdvice = $decision.getPatientAdvice();
         String advice = "Treatment failure after 3 months on metformin: Add SECOND agent (Metformin AND partner). If still uncontrolled on dual therapy, consider TRIPLE THERAPY (Metformin AND two others) or insulin.";
@@ -273,18 +315,19 @@ rule "First Line Therapy - Metformin"
     when
         $patient: PatientData(
             medicalHistory.renalImpairment == false,
+            investigations != null,
             investigations.egfr >= 45,
             medicalHistory.liverDisease == false
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus", subClassification == "Type 2 Diabetes") from $patient.getDecisions()
     then
-        $decision.addMedication("Metformin 500mg once daily with meals (MONOTHERAPY/FOUNDATION agent)");
-        $decision.addMedication("Titrate to 500mg twice daily after 1-2 weeks (as tolerated)");
-        $decision.addMedication("Maximum dose 1000mg twice daily if tolerated");
+        dmAddMedicationIfAbsent($decision, "Metformin 500mg once daily with meals (MONOTHERAPY/FOUNDATION agent)");
+        dmAddMedicationIfAbsent($decision, "Titrate to 500mg twice daily after 1-2 weeks (as tolerated)");
+        dmAddMedicationIfAbsent($decision, "Maximum dose 1000mg twice daily if tolerated");
 
-        $decision.addTest("Renal function tests baseline");
-        $decision.addTest("Liver function tests");
-        $decision.addTest("Fasting lipid profile");
+        dmAddTestIfAbsent($decision, "Renal function tests baseline");
+        dmAddTestIfAbsent($decision, "Liver function tests");
+        dmAddTestIfAbsent($decision, "Fasting lipid profile");
 
         String currentAdvice = $decision.getPatientAdvice();
         String advice = "Metformin is first-line therapy unless contraindicated. If contraindicated, choose alternative monotherapy/therapy (see contraindication rule).";
@@ -303,7 +346,7 @@ rule "Metformin Contraindication Renal"
     when
         $patient: PatientData(
             medicalHistory.renalImpairment == true ||
-            investigations.egfr < 45
+            (investigations != null && investigations.egfr < 45)
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
@@ -347,8 +390,8 @@ rule "Diabetes with Hypertension Comorbidity"
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
         // Use ACEI OR ARB (choose one) — explicit OR
-        $decision.addMedication("ACEI (Captopril) OR ARB (Losartan) preferred for hypertension in diabetes (choose ONE).");
-        $decision.addMedication("Target BP: <130/80 mmHg");
+        dmAddMedicationIfAbsent($decision, "ACEI (Lisinopril or Enalapril) OR ARB (Losartan) preferred for hypertension in diabetes (choose ONE).");
+        dmAddMedicationIfAbsent($decision, "Target BP: <130/80 mmHg");
 
         String currentAdvice = $decision.getPatientAdvice();
         $decision.setPatientAdvice((currentAdvice != null ? currentAdvice + " " : "") + "Hypertension present. Tight BP control needed (target <130/80). Use ACEI OR ARB unless contraindicated.");
@@ -381,7 +424,7 @@ rule "Diabetes with CKD Comorbidity"
     when
         $patient: PatientData(
             medicalHistory.chronicKidneyDisease == true ||
-            investigations.egfr < 60
+            (investigations != null && investigations.egfr < 60)
         )
         $decision: ClinicalDecision(diagnosis == "Diabetes Mellitus") from $patient.getDecisions()
     then
@@ -505,6 +548,7 @@ end
 rule "DKA Suspicion"
     when
         $patient: PatientData(
+            investigations != null,
             (investigations.randomGlucose > 250.0 || investigations.ketonuria == true) &&
             (medicalHistory.abdominalPain == true || medicalHistory.nauseaVomiting == true ||
              medicalHistory.dehydration == true || medicalHistory.rapidBreathing == true)
@@ -523,6 +567,7 @@ end
 rule "Hyperglycemic Emergency Transfer"
     when
         $patient: PatientData(
+            investigations != null,
             investigations.randomGlucose > 400.0 || // >400 mg/dL
             (investigations.randomGlucose >= 200.0 && investigations.randomGlucose <= 400.0 &&
              medicalHistory.dangerSigns == true)
